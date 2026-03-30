@@ -1,13 +1,11 @@
 {
   "meta": {
     "lastLoadDate": "2026-03-30",
-    "lastRunTs": "2026-03-30T12:29:21.340663+00:00",
+    "lastRunTs": "2026-03-30T12:31:51.350617+00:00",
     "notes": "Fallback. En producción, el extractor actualizará este archivo vía GitHub Actions."
   },
   "ui": {
-    "monthLabels": {
-      "2026-04": "ABR-26"
-    }
+    "monthLabels": {}
   },
   "totalsByMonth": {
     "2026-03": {
