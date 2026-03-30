@@ -175,14 +175,8 @@ def get_excel_generacion_datetime(msg, cfg: dict) -> datetime | None:
     """Lee el Excel adjunto y devuelve la fecha/hora de generación (si aparece)."""
     nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
     for part in msg.walk():
-        fn_raw = part.get_filename()
-        if not fn_raw:
-            continue
-        fn = _decode_header_value(fn_raw).strip()
-        fn_norm = fn.lower().replace(".xlmx", ".xlsx")
-        if not fn_norm.endswith(".xlsx"):
-            continue
-        if nombre_cfg and nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
+        ok, fn_norm = _is_matching_excel_part(part, nombre_cfg)
+        if not ok:
             continue
         try:
             import io
@@ -198,20 +192,61 @@ def get_excel_generacion_datetime(msg, cfg: dict) -> datetime | None:
     return None
 
 
+def _part_filename_normalized(part) -> str:
+    """Obtiene nombre de adjunto desde filename/name de forma tolerante."""
+    fn_raw = part.get_filename()
+    if fn_raw:
+        fn = _decode_header_value(fn_raw).strip()
+        if fn:
+            return fn.lower().replace(".xlmx", ".xlsx")
+
+    # fallback: algunos correos traen "name" en Content-Type
+    name_raw = part.get_param("name")
+    if name_raw:
+        name = _decode_header_value(name_raw).strip()
+        if name:
+            return name.lower().replace(".xlmx", ".xlsx")
+
+    # fallback: filename en Content-Disposition
+    disp_fn = part.get_param("filename", header="content-disposition")
+    if disp_fn:
+        dfn = _decode_header_value(disp_fn).strip()
+        if dfn:
+            return dfn.lower().replace(".xlmx", ".xlsx")
+
+    return ""
+
+
+def _is_excel_mime(part) -> bool:
+    ctype = (part.get_content_type() or "").lower()
+    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        return True
+    # algunos sistemas lo envían genérico con nombre de archivo
+    if ctype in ("application/octet-stream", "application/vnd.ms-excel"):
+        return True
+    return False
+
+
+def _is_matching_excel_part(part, nombre_cfg: str) -> tuple[bool, str]:
+    """Devuelve (es_adj_excel, filename_normalized)."""
+    fn_norm = _part_filename_normalized(part)
+    has_xlsx_name = fn_norm.endswith(".xlsx")
+    is_excel = has_xlsx_name or _is_excel_mime(part)
+    if not is_excel:
+        return False, fn_norm
+    if nombre_cfg and fn_norm:
+        if nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
+            return False, fn_norm
+    return True, fn_norm
+
+
 def _message_has_matching_xlsx(msg, cfg: dict) -> bool:
     """True si el correo contiene al menos un adjunto .xlsx que cumple el filtro de nombre (si existe)."""
     nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
     for part in msg.walk():
-        fn_raw = part.get_filename()
-        if not fn_raw:
-            continue
-        fn = _decode_header_value(fn_raw).strip()
-        fn_norm = fn.lower().replace(".xlmx", ".xlsx")
-        if not fn_norm.endswith(".xlsx"):
-            continue
-        if nombre_cfg and nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
-            continue
-        return True
+        ok, _ = _is_matching_excel_part(part, nombre_cfg)
+        if ok:
+            return True
     return False
 
 
@@ -237,15 +272,11 @@ def get_excel_attachment_path(conn, uid, cfg, tmp_dir: str) -> Path | None:
 
     nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
     for part in msg.walk():
-        fn_raw = part.get_filename()
-        if not fn_raw:
+        ok, fn_norm = _is_matching_excel_part(part, nombre_cfg)
+        if not ok:
             continue
-        fn = _decode_header_value(fn_raw).strip()
-        fn_norm = fn.lower().replace(".xlmx", ".xlsx")
-        if not fn_norm.endswith(".xlsx"):
-            continue
-        if nombre_cfg and nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
-            continue
+        if not fn_norm:
+            fn_norm = f"informe_uid_{uid.decode()}.xlsx"
         out = Path(tmp_dir) / fn_norm
         out.write_bytes(part.get_payload(decode=True))
         return out
