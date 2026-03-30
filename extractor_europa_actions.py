@@ -499,6 +499,9 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
     suffix = str(cm_year)[-2:]
     cm_month_idx = cm_month - 1
     month_name = MONTHS_ES[cm_month_idx]
+    # En algunos Excel el bloque mensual viene etiquetado por mes civil "de origen"
+    # (p.ej., datos 26-mar..25-abr bajo fila MARZO). Fallback al mes anterior.
+    month_name_prev = MONTHS_ES[(cm_month_idx - 1) % 12]
 
     # days for projection
     cm_start, cm_end = commercial_month_bounds(cm_year, cm_month)
@@ -508,14 +511,15 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
 
     days = compute_days_elapsed_and_total(loc_tot, cm_start, cm_end, last_load_date)
 
-    def find_month_row(ws, label: str) -> int | None:
+    def find_month_row(ws, labels: list[str]) -> int | None:
+        labels_up = {str(x).strip().upper() for x in labels if x}
         for i, row in enumerate(ws.iter_rows(min_row=1, max_row=120, values_only=True), start=1):
             # first 2 columns contain month label in this example
             for j in [0,1]:
                 v = row[j] if j < len(row) else None
                 if v is None:
                     continue
-                if str(v).strip().upper() == label.upper():
+                if str(v).strip().upper() in labels_up:
                     return i
         return None
 
@@ -572,7 +576,7 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
     totals = {}
     if total_sheet in wb.sheetnames:
         ws = wb[total_sheet]
-        row_idx = find_month_row(ws, month_name)
+        row_idx = find_month_row(ws, [month_name, month_name_prev])
         if row_idx:
             # demo indices for TOTAL sheets: col2=budget, col3=real cur, col4=real prev (0-based 2,3,4)
             budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=(2,3,4))
@@ -582,7 +586,7 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
     center_sheets = [s for s in wb.sheetnames if s.endswith(suffix) and any(k in s.upper() for k in ["ZARAGOZA","LERIDA","ALMOZARA","CORONA"])]
     for sh in center_sheets:
         ws = wb[sh]
-        row_idx = find_month_row(ws, month_name)
+        row_idx = find_month_row(ws, [month_name, month_name_prev])
         if not row_idx:
             continue
 
