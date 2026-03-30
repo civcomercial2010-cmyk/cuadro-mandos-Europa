@@ -613,16 +613,16 @@ def update_json_payload(payload: dict):
         existing["vendorsByMonth"].setdefault(mk, {})
         existing["vendorsByMonth"][mk].update(vdict)
 
-    # monthLabels: solo para meses que realmente tienen datos en totalsByMonth
-    incoming_labels = (payload.get("ui") or {}).get("monthLabels") or {}
-    for mk, lbl in incoming_labels.items():
-        if mk in existing["totalsByMonth"]:
-            existing["ui"]["monthLabels"][mk] = lbl
-
-    # Limpieza: eliminar labels de meses que no existen en totalsByMonth
-    for mk in list(existing["ui"]["monthLabels"].keys()):
-        if mk not in existing["totalsByMonth"]:
-            del existing["ui"]["monthLabels"][mk]
+    # monthLabels: fuente de verdad = totalsByMonth (evita labels huérfanos/desalineados)
+    rebuilt_labels = {}
+    for mk in sorted(existing["totalsByMonth"].keys()):
+        try:
+            _y = int(mk.split("-")[0])
+            _m = int(mk.split("-")[1])
+            rebuilt_labels[mk] = f"{MONTHS_ES[_m-1].upper()[:3]}-{str(_y)[-2:]}"
+        except Exception:
+            rebuilt_labels[mk] = mk
+    existing["ui"]["monthLabels"] = rebuilt_labels
     # historyAnnual: overwrite if provided
     if payload.get("historyAnnual"):
         existing["historyAnnual"].update(payload["historyAnnual"])
