@@ -198,6 +198,39 @@ def get_excel_generacion_datetime(msg, cfg: dict) -> datetime | None:
     return None
 
 
+def _message_has_matching_xlsx(msg, cfg: dict) -> bool:
+    """True si el correo contiene al menos un adjunto .xlsx que cumple el filtro de nombre (si existe)."""
+    nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
+    for part in msg.walk():
+        fn_raw = part.get_filename()
+        if not fn_raw:
+            continue
+        fn = _decode_header_value(fn_raw).strip()
+        fn_norm = fn.lower().replace(".xlmx", ".xlsx")
+        if not fn_norm.endswith(".xlsx"):
+            continue
+        if nombre_cfg and nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
+            continue
+        return True
+    return False
+
+
+def _email_header_datetime(msg) -> datetime | None:
+    """Fallback de fecha/hora del correo (cabecera Date) en UTC naive."""
+    raw = msg.get("Date")
+    if not raw:
+        return None
+    try:
+        dt = email.utils.parsedate_to_datetime(raw)
+        if dt is None:
+            return None
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+    except Exception:
+        return None
+
+
 def get_excel_attachment_path(conn, uid, cfg, tmp_dir: str) -> Path | None:
     _, msg_data = conn.fetch(uid, "(RFC822)")
     msg = email.message_from_bytes(msg_data[0][1])
@@ -250,17 +283,34 @@ def find_latest_email_by_generation(conn, cfg: dict) -> bytes | None:
     for uid in ids:
         _, full = conn.fetch(uid, "(RFC822)")
         msg = email.message_from_bytes(full[0][1])
+
+        if not _message_has_matching_xlsx(msg, cfg):
+            log.info(f"UID {uid.decode()}: sin adjunto .xlsx válido, descartado")
+            continue
+
         gen_dt = get_excel_generacion_datetime(msg, cfg)
+        used_fallback = False
         if gen_dt is None:
-            continue
+            gen_dt = _email_header_datetime(msg)
+            used_fallback = True
+            if gen_dt is None:
+                log.info(f"UID {uid.decode()}: sin fecha generación ni Date cabecera legible, descartado")
+                continue
+
         if gen_dt.date() > today_utc:
+            log.info(f"UID {uid.decode()}: fecha futura {gen_dt.date()} > {today_utc}, descartado")
             continue
+
         # tie-break by UID numeric greater
         uidn = int(uid.decode())
+        src = "email-date" if used_fallback else "excel-generation"
+        log.info(f"UID {uid.decode()}: candidato dt={gen_dt.isoformat()} src={src}")
         if best_dt is None or gen_dt > best_dt or (gen_dt == best_dt and uidn > int(best_uid.decode())):
             best_dt = gen_dt
             best_uid = uid
 
+    if best_uid is not None:
+        log.info(f"UID seleccionado: {best_uid.decode()} (dt={best_dt})")
     return best_uid
 
 
@@ -800,6 +850,40 @@ def main():
     log.info("=" * 70)
     log.info("Europa extractor — start")
     cfg = load_config()
+
+    # Modo local de pruebas (sin IMAP): usar un Excel local directo.
+    local_xlsx = os.environ.get("LOCAL_XLSX_PATH", "").strip()
+    if local_xlsx:
+        xlsx = Path(local_xlsx)
+        if not xlsx.exists():
+            log.error(f"LOCAL_XLSX_PATH no existe: {xlsx}")
+            return
+
+        fecha_hasta = find_fecha_hasta(xlsx, cfg)
+        gen_dt = find_generation_datetime(xlsx, cfg)
+        if fecha_hasta is None:
+            log.error("No se detectó 'Fecha hasta' en Excel local.")
+            return
+
+        cm_year, cm_month = commercial_month_from_fecha_hasta(fecha_hasta)
+        last_load_date = compute_last_load_date_local(gen_dt, fecha_hasta, cm_year, cm_month)
+
+        # Drive append opcional también en modo local (idempotente)
+        key = f"{(gen_dt.isoformat() if gen_dt else 'unknown-gen')}::LOCAL_XLSX::{xlsx.name}"
+        try:
+            drive_append_workbook_to_tab(cfg, xlsx, key, gen_dt, fecha_hasta)
+        except Exception as e:
+            log.warning(f"Drive append (local mode) se saltó por error: {e}")
+
+        wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
+        payload = parse_demo_aggregated_from_evolucion(wb, cm_year, cm_month, last_load_date)
+        try:
+            wb.close()
+        except Exception:
+            pass
+        update_json_payload(payload)
+        log.info("Europa extractor — end (local mode)")
+        return
 
     conn = connect_gmail(cfg)
     uid = find_latest_email_by_generation(conn, cfg)
