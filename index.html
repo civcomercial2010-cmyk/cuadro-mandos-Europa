@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hipopótamo Europa — Cuadro de Mando</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">E</div>
+        <div>
+          <div class="title">Hipopótamo Europa S.L.</div>
+          <div class="subtitle">Cuadro de mando comercial · Europa</div>
+        </div>
+      </div>
+      <div class="badge">
+        <div class="lbl">Datos a fecha</div>
+        <div class="val" id="header-lastLoad">—</div>
+        <div class="muted" id="header-lastRun" style="margin-top:6px;font-size:12px;">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head" style="margin-bottom:6px;">
+        <div>
+          <div class="section-title">Navegación</div>
+          <div class="section-note" style="margin-top:6px;">
+            Filtros: Mes comercial · Centro. Drill-down: Centro → Vendedor (si existe en data.json).
+          </div>
+        </div>
+        <div class="pill green" id="load-status">Cargando…</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
+        <div>
+          <div class="muted" style="font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;">Mes comercial</div>
+          <select id="sel-month" style="margin-top:6px;padding:10px 12px;border-radius:999px;border:1px solid var(--bdr);background:var(--srf);font-weight:900;color:var(--txt2);">
+            <option value="">—</option>
+          </select>
+        </div>
+        <div>
+          <div class="muted" style="font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;">Centro</div>
+          <select id="sel-center" style="margin-top:6px;padding:10px 12px;border-radius:999px;border:1px solid var(--bdr);background:var(--srf);font-weight:900;color:var(--txt2);">
+            <option value="">Europa (total)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: EJECUTIVO -->
+    <div id="view-executivo">
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Cuadro ejecutivo — Proyección mes (KPI clave)</div>
+            <div class="section-note">Proyección = real ÷ días transcurridos × días totales, con control de calendario.</div>
+          </div>
+          <div class="pill blue" id="exec-month-label">—</div>
+        </div>
+
+        <div class="kpi-grid g4">
+          <div class="kpi blue">
+            <div class="label">Ventas real CM (€)</div>
+            <div class="value" id="kpi-real">—</div>
+            <div class="hint">Acumulado real en el mes comercial</div>
+          </div>
+          <div class="kpi amber">
+            <div class="label">Proyección mes (€)</div>
+            <div class="value" id="kpi-proy">—</div>
+            <div class="hint">Proyección a cierre</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Presupuesto CM (€)</div>
+            <div class="value" id="kpi-budget">—</div>
+            <div class="hint">Plan del mes</div>
+          </div>
+          <div class="kpi green">
+            <div class="label">% Cumplimiento</div>
+            <div class="value" id="kpi-pct">—</div>
+            <div class="hint">Proyección / presupuesto</div>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="margin-top:14px;">
+          <div class="kpi blue">
+            <div class="label">Ventas/día (pace)</div>
+            <div class="value" id="kpi-pace">—</div>
+            <div class="hint">Real / días transcurridos</div>
+          </div>
+          <div class="kpi red">
+            <div class="label">YoY real (CM)</div>
+            <div class="value" id="kpi-yoy-real">—</div>
+            <div class="hint">Variación vs mismo CM año anterior</div>
+          </div>
+          <div class="kpi">
+            <div class="label">YoY proyección</div>
+            <div class="value" id="kpi-yoy-proy">—</div>
+            <div class="hint">Proyección vs YoY</div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="panel2">
+            <div class="sub">Calendario — días</div>
+            <div class="line"><span class="k">Días transcurridos</span><span class="v" id="days-elapsed">—</span></div>
+            <div class="line"><span class="k">Días totales mes</span><span class="v" id="days-total">—</span></div>
+            <div class="subnote">
+              Laborables: Lunes a Sábado, descontando festivos (Zaragoza / Alcarrás→Lleida).
+            </div>
+          </div>
+          <div class="panel2">
+            <div class="sub">Control — desviaciones</div>
+            <div class="line"><span class="k">Var real vs pres.</span><span class="v" id="var-real">—</span></div>
+            <div class="line"><span class="k">Var proy vs pres.</span><span class="v" id="var-proy">—</span></div>
+            <div class="subnote">Semáforo por umbrales (si la implementación añade colores por KPI).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Centros — Realizado y Proyección</div>
+            <div class="section-note">Tabla responsive: en móvil se apila (sin scroll).</div>
+          </div>
+          <div class="pill blue">Drill-down centro</div>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Centro</th>
+                <th>Real</th>
+                <th>Proy.</th>
+                <th>Pres.</th>
+                <th>%</th>
+                <th>YoY</th>
+                <th>Cuota Europa</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-centers"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW: CENTRO -->
+    <div id="view-centro" style="display:none;">
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Detalle Centro</div>
+            <div class="section-note">Vendedores activos en el mes comercial (si existen en data.json).</div>
+          </div>
+          <div class="pill blue" id="center-pill">—</div>
+        </div>
+        <div class="kpi-grid g4">
+          <div class="kpi blue">
+            <div class="label">Ventas real CM (€)</div>
+            <div class="value" id="c-real">—</div>
+            <div class="hint">Centro</div>
+          </div>
+          <div class="kpi amber">
+            <div class="label">Proyección mes (€)</div>
+            <div class="value" id="c-proy">—</div>
+            <div class="hint">A cierre</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Presupuesto CM (€)</div>
+            <div class="value" id="c-budget">—</div>
+            <div class="hint">Plan</div>
+          </div>
+          <div class="kpi green">
+            <div class="label">% Cumplimiento</div>
+            <div class="value" id="c-pct">—</div>
+            <div class="hint">Proy / Pres</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Vendedores</div>
+            <div class="section-note">Si faltan ventas por vendedor, se mostrará `—` sin romper el cuadro.</div>
+          </div>
+          <button class="navbtn" onclick="goBack()" style="cursor:pointer;">↩ Volver</button>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Vendedor</th>
+                <th>Real</th>
+                <th>Proy.</th>
+                <th>YoY</th>
+                <th>Cuota centro</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-vendors"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Histórico anual (todos los años previos)</div>
+            <div class="section-note">Tabla con total anual y YoY (si data.json lo aporta).</div>
+          </div>
+          <div class="pill blue">Europa TOTAL</div>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Año</th>
+                <th>Total anual</th>
+                <th>YoY</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-history"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Evolución mensual (real / proyección)</div>
+            <div class="section-note">Gráfico re-escalable: usa los monthKeys disponibles en data.json.</div>
+          </div>
+          <div class="pill green">Chart.js</div>
+        </div>
+        <div class="chart-placeholder" style="height:10px;border:none;background:transparent;margin-top:0;"></div>
+        <div class="chart-legend">
+          <div class="leg"><span class="leg-line" style="background:rgba(26,86,232,.45);"></span>Real</div>
+          <div class="leg"><span class="leg-line" style="background:rgba(13,159,110,.35);"></span>Proyección (mes actual)</div>
+        </div>
+        <div class="chart-placeholder" style="height:auto;border:none;background:transparent;padding:0;">
+          <div style="height:260px;">
+            <canvas id="chart-evolution"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Rolling 12 meses + YTD</div>
+            <div class="section-note">KPIs y gráficos para control directivo.</div>
+          </div>
+          <div class="pill blue">Tendencia</div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi blue">
+            <div class="label">Rolling 12m</div>
+            <div class="value" id="kpi-rolling">—</div>
+            <div class="hint">Suma últimos 12 CM</div>
+          </div>
+          <div class="kpi">
+            <div class="label">YoY Rolling</div>
+            <div class="value" id="kpi-rolling-yoy">—</div>
+            <div class="hint">vs rolling del año anterior</div>
+          </div>
+          <div class="kpi green">
+            <div class="label">YTD comercial</div>
+            <div class="value" id="kpi-ytd">—</div>
+            <div class="hint">Acumulado CM del año</div>
+          </div>
+          <div class="kpi red">
+            <div class="label">YoY YTD</div>
+            <div class="value" id="kpi-ytd-yoy">—</div>
+            <div class="hint">YTD vs mismo YTD año anterior</div>
+          </div>
+        </div>
+
+        <div class="chart-placeholder" style="height:auto;border:none;background:transparent;padding:0;">
+          <div style="height:230px;">
+            <canvas id="chart-rolling"></canvas>
+          </div>
+        </div>
+      </div>
+
+  </div>
+
+  <script>
+    const MONTH_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+    let state = null;
+    let currentMonthKey = null;
+    let currentCenterId = null;
+    let charts = {};
+
+    function fmtEur(v){
+      if(v === null || v === undefined || Number.isNaN(v)) return '—';
+      try { return new Intl.NumberFormat('es-ES', {maximumFractionDigits:0}).format(v) + ' €'; }
+      catch { return String(v); }
+    }
+    function fmtPct(v){
+      if(v === null || v === undefined || Number.isNaN(v)) return '—';
+      return (v).toFixed(1) + '%';
+    }
+
+    function setText(id, v){ const el=document.getElementById(id); if(el) el.textContent = v; }
+
+    function getMonthKeys(){
+      if(!state) return [];
+      return Object.keys(state.totalsByMonth || {}).sort();
+    }
+
+    function getMonthLabel(monthKey){
+      // monthKey = YYYY-MM, label comes from state.ui maybe, else fallback.
+      const mo = (monthKey || '').split('-')[1];
+      const m = mo ? parseInt(mo,10)-1 : 0;
+      return MONTH_ES[Math.max(0, Math.min(11, m))] + ' (CM)';
+    }
+
+    function renderExecutive(){
+      const mk = currentMonthKey;
+      if(!state || !state.totalsByMonth || !state.totalsByMonth[mk]) return;
+      const t = state.totalsByMonth[mk];
+
+      setText('exec-month-label', state.ui?.monthLabels?.[mk] || getMonthLabel(mk));
+      setText('kpi-real', fmtEur(t.real));
+      setText('kpi-proy', fmtEur(t.projection));
+      setText('kpi-budget', fmtEur(t.budget));
+      setText('kpi-pct', (t.pctProyBudget ?? null) !== null ? fmtPct(t.pctProyBudget) : '—');
+      setText('kpi-pace', fmtEur(t.pace));
+      setText('kpi-yoy-real', t.yoyRealPct != null ? fmtPct(t.yoyRealPct) : '—');
+      setText('kpi-yoy-proy', t.yoyProyPct != null ? fmtPct(t.yoyProyPct) : '—');
+
+      setText('days-elapsed', t.daysElapsed != null ? String(t.daysElapsed) : '—');
+      setText('days-total', t.daysTotal != null ? String(t.daysTotal) : '—');
+      setText('var-real', fmtEur(t.varRealVsBudget));
+      setText('var-proy', fmtEur(t.varProyVsBudget));
+
+      const tbody = document.getElementById('tbody-centers');
+      tbody.innerHTML = '';
+      const centers = (state.centersByMonth && state.centersByMonth[mk]) ? state.centersByMonth[mk] : {};
+      const totalRealForShare = t.real ?? 0;
+      const centerIds = Object.keys(centers).sort();
+      centerIds.forEach(cid => {
+        const c = centers[cid] || {};
+        const share = totalRealForShare ? (c.real / totalRealForShare * 100) : null;
+        const tr = document.createElement('tr');
+        const yoyo = c.yoyRealPct != null ? fmtPct(c.yoyRealPct) : '—';
+        const pct = c.pctProyBudget != null ? fmtPct(c.pctProyBudget) : '—';
+        const shareStr = share != null ? share.toFixed(1) + '%' : '—';
+
+        tr.innerHTML = `
+          <td data-label="Centro">
+            <button class="navbtn" style="cursor:pointer; padding:6px 12px;" onclick="openCenter('${cid}')">${cid}</button>
+          </td>
+          <td data-label="Real">${fmtEur(c.real)}</td>
+          <td data-label="Proy.">${fmtEur(c.projection)}</td>
+          <td data-label="Pres.">${fmtEur(c.budget)}</td>
+          <td data-label="%">${pct}</td>
+          <td data-label="YoY">${yoyo}</td>
+          <td data-label="Cuota Europa">${shareStr}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderHistoryAnnual();
+      renderEvolutionChart();
+      renderRollingAndYTD();
+    }
+
+    function renderHistoryAnnual(){
+      const tbody = document.getElementById('tbody-history');
+      if(!tbody) return;
+      tbody.innerHTML = '';
+      const hist = state?.historyAnnual || {};
+      const keys = Object.keys(hist).sort();
+      if(!keys.length){
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="3" class="muted">— Sin histórico anual</td>';
+        tbody.appendChild(tr);
+        return;
+      }
+      keys.forEach(yk => {
+        const h = hist[yk] || {};
+        const total = h.total;
+        const yoy = h.yoyPct;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="Año">${yk}</td>
+          <td data-label="Total anual"><b>${fmtEur(total)}</b></td>
+          <td data-label="YoY">${yoy != null ? fmtPct(yoy) : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function getSortedMonthKeys(){
+      const keys = getMonthKeys();
+      return keys;
+    }
+
+    function buildTotalsForEvolution(){
+      const mk = currentMonthKey;
+      const keys = getSortedMonthKeys();
+      // keep at most 18 points to keep chart clean
+      const slice = keys.slice(Math.max(0, keys.length - 18));
+      const labels = slice.map(k => state.ui?.monthLabels?.[k] || getMonthLabel(k));
+      const reals = slice.map(k => state.totalsByMonth?.[k]?.real ?? null);
+      const proys = slice.map(k => {
+        if(k === mk) return state.totalsByMonth?.[k]?.projection ?? null;
+        return null;
+      });
+      return {labels, reals, proys};
+    }
+
+    function renderEvolutionChart(){
+      const canvas = document.getElementById('chart-evolution');
+      if(!canvas) return;
+      if(charts['evolution']){ charts['evolution'].destroy(); delete charts['evolution']; }
+      const b = buildTotalsForEvolution();
+      const ctx = canvas.getContext('2d');
+
+      charts['evolution'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: b.labels,
+          datasets: [
+            { label: 'Real', data: b.reals, backgroundColor: 'rgba(26,86,232,0.45)', borderRadius: 4, borderWidth: 0 },
+            { label: 'Proyección (mes actual)', data: b.proys, backgroundColor: 'rgba(13,159,110,0.28)', borderRadius: 4, borderWidth: 0 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { ticks: { color: '#5c5a55' } } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (item) => {
+                  const v = item.raw;
+                  return v == null ? '—' : ' ' + (fmtEur(v));
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function parseMonthKey(mk){
+      const [y, m] = mk.split('-').map(x => parseInt(x, 10));
+      return { y, m }; // m 1..12
+    }
+
+    function computeRollingAndYTD(){
+      const keys = getSortedMonthKeys();
+      const mk = currentMonthKey;
+      const idx = keys.indexOf(mk);
+      if(idx < 0) return null;
+
+      const last12 = keys.slice(Math.max(0, idx - 11), idx + 1);
+      const prevStart = idx - 12;
+      const prev12 = keys.slice(Math.max(0, prevStart), prevStart + 12);
+      const sum = (arr) => arr.reduce((a,k)=>a + (state.totalsByMonth?.[k]?.real ?? 0), 0);
+      const rolling = sum(last12);
+      const rollingPrev = sum(prev12);
+      const yoyRolling = rollingPrev ? (rolling - rollingPrev) / rollingPrev * 100.0 : null;
+
+      const {y: cmYear, m: cmMonth} = parseMonthKey(mk);
+      const ytdKeys = keys.filter(k => {
+        const {y, m} = parseMonthKey(k);
+        return y === cmYear && m <= cmMonth;
+      });
+      const ytd = ytdKeys.reduce((a,k)=>a + (state.totalsByMonth?.[k]?.real ?? 0), 0);
+
+      const prevYear = cmYear - 1;
+      const ytdPrevKeys = keys.filter(k => {
+        const {y, m} = parseMonthKey(k);
+        return y === prevYear && m <= cmMonth;
+      });
+      const ytdPrev = ytdPrevKeys.reduce((a,k)=>a + (state.totalsByMonth?.[k]?.real ?? 0), 0);
+      const yoyYTD = ytdPrev ? (ytd - ytdPrev) / ytdPrev * 100.0 : null;
+
+      return { rolling, yoyRolling, ytd, yoyYTD };
+    }
+
+    function renderRollingAndYTD(){
+      const r = computeRollingAndYTD();
+      if(!r){
+        setText('kpi-rolling', '—');
+        setText('kpi-rolling-yoy', '—');
+        setText('kpi-ytd', '—');
+        setText('kpi-ytd-yoy', '—');
+        return;
+      }
+      setText('kpi-rolling', fmtEur(r.rolling));
+      setText('kpi-rolling-yoy', r.yoyRolling != null ? fmtPct(r.yoyRolling) : '—');
+      setText('kpi-ytd', fmtEur(r.ytd));
+      setText('kpi-ytd-yoy', r.yoyYTD != null ? fmtPct(r.yoyYTD) : '—');
+
+      const canvas = document.getElementById('chart-rolling');
+      if(!canvas) return;
+      if(charts['rolling']){ charts['rolling'].destroy(); delete charts['rolling']; }
+
+      const keys = getSortedMonthKeys();
+      const mk = currentMonthKey;
+      const idx = keys.indexOf(mk);
+      const slice = keys.slice(Math.max(0, idx - 11), idx + 1);
+      const labels = slice.map(k => state.ui?.monthLabels?.[k] || getMonthLabel(k));
+      const values = slice.map(k => state.totalsByMonth?.[k]?.real ?? 0);
+
+      charts['rolling'] = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Real mensual (últimos 12)', data: values, borderColor: '#1a56e8', borderWidth: 2, pointRadius: 2, tension: 0.25 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display:false } },
+          scales: { y: { ticks: { color: '#5c5a55' } } }
+        }
+      });
+    }
+
+    function renderCenter(){
+      const mk = currentMonthKey;
+      if(!state || !state.centersByMonth || !state.centersByMonth[mk] || !state.centersByMonth[mk][currentCenterId]) return;
+      const c = state.centersByMonth[mk][currentCenterId];
+
+      setText('center-pill', currentCenterId);
+      setText('c-real', fmtEur(c.real));
+      setText('c-proy', fmtEur(c.projection));
+      setText('c-budget', fmtEur(c.budget));
+      setText('c-pct', c.pctProyBudget != null ? fmtPct(c.pctProyBudget) : '—');
+
+      const tbody = document.getElementById('tbody-vendors');
+      tbody.innerHTML = '';
+      const vendorsByMonth = state.vendorsByMonth?.[mk] || {};
+      const vendorIds = Object.keys(vendorsByMonth).filter(vid => vendorsByMonth[vid]?.centerId === currentCenterId);
+      vendorIds.sort().forEach(vid => {
+        const v = vendorsByMonth[vid];
+        const cuota = c.real ? (v.real / c.real * 100) : null;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="Vendedor"><span class="pill blue">${vid}</span></td>
+          <td data-label="Real">${fmtEur(v.real)}</td>
+          <td data-label="Proy.">${fmtEur(v.projection)}</td>
+          <td data-label="YoY">${v.yoyRealPct != null ? fmtPct(v.yoyRealPct) : '—'}</td>
+          <td data-label="Cuota centro">${cuota != null ? cuota.toFixed(1)+'%' : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if(!vendorIds.length){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="5" data-label="Sin datos" class="muted">— No hay desglose por vendedor en data.json para este periodo.</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function openCenter(centerId){
+      currentCenterId = centerId;
+      document.getElementById('view-executivo').style.display = 'none';
+      document.getElementById('view-centro').style.display = 'block';
+      renderCenter();
+    }
+    function goBack(){
+      document.getElementById('view-centro').style.display = 'none';
+      document.getElementById('view-executivo').style.display = 'block';
+    }
+
+    function syncSelects(){
+      const monthSel = document.getElementById('sel-month');
+      const centerSel = document.getElementById('sel-center');
+      const monthKeys = getMonthKeys();
+      monthSel.innerHTML = '';
+      if(!monthKeys.length) monthSel.innerHTML = '<option value="">—</option>';
+      monthKeys.forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = (state.ui?.monthLabels?.[k]) || getMonthLabel(k);
+        monthSel.appendChild(opt);
+      });
+
+      currentMonthKey = currentMonthKey || monthKeys[monthKeys.length-1] || null;
+      monthSel.value = currentMonthKey || '';
+
+      // center selector: fill from first month (or from current)
+      centerSel.innerHTML = '<option value="">Europa (total)</option>';
+      const centers = state.centersByMonth?.[currentMonthKey] || {};
+      Object.keys(centers).sort().forEach(cid => {
+        const opt = document.createElement('option');
+        opt.value = cid;
+        opt.textContent = cid;
+        centerSel.appendChild(opt);
+      });
+    }
+
+    function parseQuery(){
+      const q = new URLSearchParams(window.location.search);
+      const view = q.get('view');
+      const center = q.get('center');
+      const month = q.get('month');
+      return {view, center, month};
+    }
+
+    async function loadData(){
+      document.getElementById('load-status').textContent = 'Cargando…';
+      try{
+        const resp = await fetch('./data.json?_=' + Date.now(), {cache:'no-store'});
+        if(!resp.ok) throw new Error('HTTP '+resp.status);
+        state = await resp.json();
+        document.getElementById('load-status').textContent = 'Datos OK';
+      } catch(e){
+        document.getElementById('load-status').textContent = 'Sin data.json (fallback)';
+        // Fallback mínima
+        state = {
+          meta: {},
+          ui: { monthLabels: {} },
+          totalsByMonth: {},
+          centersByMonth: {},
+          vendorsByMonth: {},
+          historyAnnual: {}
+        };
+      }
+      const lastLoad = state.meta?.lastLoadDate ? state.meta.lastLoadDate : '—';
+      const lastRun = state.meta?.lastRunTs ? new Date(state.meta.lastRunTs).toLocaleString('es-ES') : '—';
+      setText('header-lastLoad', lastLoad);
+      setText('header-lastRun', 'Última sincronización: ' + lastRun);
+
+      const {view, center, month} = parseQuery();
+      currentMonthKey = month || currentMonthKey;
+      syncSelects();
+
+      // Default view
+      if(view === 'centro' && center){
+        currentCenterId = center;
+        document.getElementById('view-executivo').style.display = 'none';
+        document.getElementById('view-centro').style.display = 'block';
+        renderCenter();
+      } else {
+        renderExecutive();
+      }
+    }
+
+    function attachEvents(){
+      document.getElementById('sel-month').addEventListener('change', (e) => {
+        currentMonthKey = e.target.value;
+        currentCenterId = null;
+        document.getElementById('view-centro').style.display = 'none';
+        document.getElementById('view-executivo').style.display = 'block';
+        renderExecutive();
+      });
+      document.getElementById('sel-center').addEventListener('change', (e) => {
+        const cid = e.target.value;
+        if(!cid){
+          currentCenterId = null;
+          document.getElementById('view-centro').style.display = 'none';
+          document.getElementById('view-executivo').style.display = 'block';
+          renderExecutive();
+          return;
+        }
+        openCenter(cid);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      attachEvents();
+      await loadData();
+    });
+  </script>
+</body>
+</html>
+

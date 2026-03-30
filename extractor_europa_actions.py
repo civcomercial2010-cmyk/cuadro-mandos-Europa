@@ -1,0 +1,739 @@
+"""
+extractor_europa_actions.py
+===========================
+Extractor para Hipopótamo Europa — versión de producción (base).
+
+Requisitos que cubre ya:
+1) IMAP: descarga adjunto .xlsx
+2) Selección del Excel MÁS reciente por fecha/hora de generación (y empate por UID IMAP mayor)
+3) Construcción base de data.json agregando por centro y métricas de proyección
+4) Fallback para frontend (si faltan datos, el HTML muestra —)
+5) Drive: copia append idempotente a pestaña `Datos` (por key fecha_generacion+adjunto)
+
+Lo que requiere ajuste fino (y que pediré al usuario con el sheet histórico y festivos locales):
+- parse exacto de centro/vendedor desde el Excel ERP (hoja/estructura real)
+- histórico centro↔vendedor con vigencias (sheet en Drive)
+- festivos locales Zaragoza/Lleida para todos los años relevantes
+"""
+
+import imaplib
+import email
+import email.header
+import json
+import logging
+import os
+import re
+import sys
+import tempfile
+from datetime import datetime, date, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+try:
+    import openpyxl
+except ImportError:
+    sys.exit("ERROR: install openpyxl")
+
+from workalendar.europe.spain import Spain
+
+import google.oauth2.service_account
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+
+REPO_DIR = Path(".")
+JSON_OUT = REPO_DIR / "data.json"
+LOG_FILE = REPO_DIR / "extractor_europa_actions.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.FileHandler(LOG_FILE, encoding="utf-8"), logging.StreamHandler(sys.stdout)],
+)
+log = logging.getLogger(__name__)
+
+
+def _decode_header_value(raw) -> str:
+    if raw is None:
+        return ""
+    parts = email.header.decode_header(raw)
+    decoded = []
+    for chunk, enc in parts:
+        if isinstance(chunk, bytes):
+            decoded.append(chunk.decode(enc or "utf-8", errors="replace"))
+        else:
+            decoded.append(chunk)
+    return " ".join(decoded).strip()
+
+
+def load_config() -> dict:
+    # Gmail / IMAP
+    cfg = {
+        "email": os.environ.get("GMAIL_USER", ""),
+        "password_app": os.environ.get("GMAIL_PASSWORD", ""),
+        "imap_server": os.environ.get("IMAP_SERVER", "imap.gmail.com"),
+        "imap_port": int(os.environ.get("IMAP_PORT", "993")),
+        "carpeta_busqueda": os.environ.get("IMAP_FOLDER", "INBOX"),
+        "asunto_contiene": os.environ.get("ASUNTO_FILTRO", "Informe ventas muebles"),
+        "remitente_contiene": os.environ.get("REMITENTE", "reportes@hipopotamo.com"),
+        "nombre_adjunto": os.environ.get("NOMBRE_ADJUNTO", "Informe ventas muebles xlsx"),
+        "buscar_ultimas_horas": int(os.environ.get("BUSCAR_ULTIMAS_HORAS", "96")),
+
+        # Excel parsing
+        "hoja_excel": os.environ.get("HOJA_EXCEL", "VENTAS"),
+
+        # Drive/Sheets
+        "drive_spreadsheet_id": os.environ.get("DRIVE_SPREADSHEET_ID", ""),
+        "drive_tab": os.environ.get("DRIVE_TAB", "Datos"),
+        "drive_key_column": os.environ.get("DRIVE_KEY_COLUMN", "A"),
+    }
+
+    # Drive service account
+    cfg["google_service_account_json"] = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if not cfg["email"] or not cfg["password_app"]:
+        log.error("Faltan GMAIL_USER o GMAIL_PASSWORD en GitHub Secrets.")
+        sys.exit(1)
+    if not cfg["google_service_account_json"]:
+        log.warning("No se encontró GOOGLE_SERVICE_ACCOUNT_JSON. Drive copy se saltará.")
+
+    # If user passes spreadsheet id through env, great. Otherwise fail later.
+    return cfg
+
+
+def connect_gmail(cfg: dict) -> imaplib.IMAP4_SSL:
+    conn = imaplib.IMAP4_SSL(cfg["imap_server"], int(cfg["imap_port"]))
+    conn.login(cfg["email"], cfg["password_app"])
+    return conn
+
+
+def _parse_generacion_datetime_from_xlsx_bytes(xlsx_bytes: bytes) -> datetime | None:
+    wb = openpyxl.load_workbook(openpyxl.utils.datetime_from_excel(0) if False else tempfile.TemporaryFile(), read_only=True)  # pragma: no cover
+    wb.close()
+
+
+def _excel_primary_sheet(wb, cfg: dict):
+    name = (cfg or {}).get("hoja_excel", "VENTAS")
+    if name in wb.sheetnames:
+        return wb[name]
+    return wb.active
+
+
+def _parse_generacion_datetime_from_sheet(ws) -> datetime | None:
+    """
+    Busca en las primeras filas texto del Excel tipo:
+      'Fecha: DD/MM/YY Hora: HH:MM'
+    y devuelve datetime (naive).
+    """
+    pat_full = re.compile(
+        r"Fecha[: \t]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})"
+        r"(?:\s+Hora:\s*(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?",
+        re.IGNORECASE,
+    )
+    for row in ws.iter_rows(min_row=1, max_row=20, values_only=True):
+        for cell in row:
+            if cell is None:
+                continue
+            if isinstance(cell, datetime):
+                return cell.replace(tzinfo=None)
+            s = str(cell).strip()
+            m = pat_full.search(s)
+            if m:
+                d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                if y < 100:
+                    y += 2000
+                hh = int(m.group(4) or 0)
+                mm = int(m.group(5) or 0)
+                ss = int(m.group(6) or 0)
+                return datetime(y, mo, d, hh, mm, ss)
+    return None
+
+
+def _parse_fecha_hasta_date_from_sheet(ws) -> date | None:
+    pat = re.compile(r"Fecha\s+hasta[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})", re.IGNORECASE)
+    for row in ws.iter_rows(min_row=1, max_row=20, values_only=True):
+        for cell in row:
+            if cell is None:
+                continue
+            s = str(cell).strip()
+            m = pat.search(s)
+            if m:
+                d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                if y < 100:
+                    y += 2000
+                return date(y, mo, d)
+    return None
+
+
+def _load_workbook_from_attachment(xlsx_path: Path, cfg: dict):
+    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+    ws = _excel_primary_sheet(wb, cfg)
+    return wb, ws
+
+
+def get_excel_generacion_datetime(msg, cfg: dict) -> datetime | None:
+    """Lee el Excel adjunto y devuelve la fecha/hora de generación (si aparece)."""
+    nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
+    for part in msg.walk():
+        fn_raw = part.get_filename()
+        if not fn_raw:
+            continue
+        fn = _decode_header_value(fn_raw).strip()
+        fn_norm = fn.lower().replace(".xlmx", ".xlsx")
+        if not fn_norm.endswith(".xlsx"):
+            continue
+        if nombre_cfg and nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
+            continue
+        try:
+            import io
+
+            data = part.get_payload(decode=True)
+            wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+            ws = _excel_primary_sheet(wb, cfg)
+            dt = _parse_generacion_datetime_from_sheet(ws)
+            wb.close()
+            return dt
+        except Exception as e:
+            log.warning(f"No se pudo leer fecha generación desde adjunto: {e}")
+    return None
+
+
+def get_excel_attachment_path(conn, uid, cfg, tmp_dir: str) -> Path | None:
+    _, msg_data = conn.fetch(uid, "(RFC822)")
+    msg = email.message_from_bytes(msg_data[0][1])
+
+    nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
+    for part in msg.walk():
+        fn_raw = part.get_filename()
+        if not fn_raw:
+            continue
+        fn = _decode_header_value(fn_raw).strip()
+        fn_norm = fn.lower().replace(".xlmx", ".xlsx")
+        if not fn_norm.endswith(".xlsx"):
+            continue
+        if nombre_cfg and nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
+            continue
+        out = Path(tmp_dir) / fn_norm
+        out.write_bytes(part.get_payload(decode=True))
+        return out
+    return None
+
+
+def find_latest_email_by_generation(conn, cfg: dict) -> bytes | None:
+    """
+    Selecciona el email cuyo Excel tenga fecha/hora de generación más reciente.
+    Si empate exacto: gana UID IMAP mayor.
+    """
+    carpeta = cfg.get("carpeta_busqueda", "INBOX")
+    conn.select(carpeta, readonly=True)
+
+    criterios = []
+    if cfg.get("asunto_contiene"):
+        criterios.append(f'SUBJECT "{cfg["asunto_contiene"]}"')
+    if cfg.get("remitente_contiene"):
+        criterios.append(f'FROM "{cfg["remitente_contiene"]}"')
+
+    horas = int(cfg.get("buscar_ultimas_horas", 96))
+    desde = (datetime.now(timezone.utc) - timedelta(hours=horas + 48)).strftime("%d-%b-%Y")
+    criterios.append(f"SINCE {desde}")
+    search_str = " ".join(criterios)
+
+    _, data = conn.search(None, search_str)
+    ids = data[0].split() if data and data[0] else []
+    if not ids:
+        return None
+
+    best_uid = None
+    best_dt = None
+    today_utc = datetime.now(timezone.utc).date()
+
+    for uid in ids:
+        _, full = conn.fetch(uid, "(RFC822)")
+        msg = email.message_from_bytes(full[0][1])
+        gen_dt = get_excel_generacion_datetime(msg, cfg)
+        if gen_dt is None:
+            continue
+        if gen_dt.date() > today_utc:
+            continue
+        # tie-break by UID numeric greater
+        uidn = int(uid.decode())
+        if best_dt is None or gen_dt > best_dt or (gen_dt == best_dt and uidn > int(best_uid.decode())):
+            best_dt = gen_dt
+            best_uid = uid
+
+    return best_uid
+
+
+def commercial_month_from_fecha_hasta(d: date) -> tuple[int, int]:
+    """Mes comercial etiquetado por mes civil de fin (día 25) con corte 26..25."""
+    if d.day <= 25:
+        return d.year, d.month
+    # day 26..31 => siguiente mes comercial
+    if d.month == 12:
+        return d.year + 1, 1
+    return d.year, d.month + 1
+
+
+def commercial_month_bounds(cm_year: int, cm_month: int) -> tuple[date, date]:
+    """Inicio/fin civil del mes comercial: 26 del mes civil anterior → 25 del mes siguiente."""
+    if cm_month == 1:
+        start = date(cm_year - 1, 12, 26)
+    else:
+        start = date(cm_year, cm_month - 1, 26)
+    end = date(cm_year, cm_month, 25)
+    return start, end
+
+
+MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+
+def compute_days_elapsed_and_total(locality_key: str, cm_start: date, cm_end: date, last_load_date: date) -> dict:
+    """
+    Laborables: Lunes a Sábado excluyendo:
+      - festivos nacionales (Spain workalendar)
+      - festivos locales (Zaragoza / Lleida) desde config opcional
+    """
+    cal = Spain()
+    years = list({cm_start.year, cm_end.year, last_load_date.year})
+    national_h = set()
+    for y in years:
+        for d,_ in cal.holidays(y):
+            national_h.add(d)
+
+    # Local holidays optional config
+    local_h = set()
+    # For this base version: keep empty (require user to provide festivos_locales.json in production).
+    # A future refinement will load `festivos_locales.json`.
+
+    def is_workday(d: date) -> bool:
+        if d.weekday() > 5:  # 0=Mon .. 6=Sun
+            return False
+        if d in national_h:
+            return False
+        if d in local_h:
+            return False
+        return True
+
+    total_days = 0
+    d = cm_start
+    while d <= cm_end:
+        if is_workday(d):
+            total_days += 1
+        d = d + timedelta(days=1)
+
+    elapsed_days = 0
+    ref = min(last_load_date, cm_end)
+    if ref < cm_start:
+        elapsed_days = 0
+    else:
+        d = cm_start
+        while d <= ref:
+            if is_workday(d):
+                elapsed_days += 1
+            d = d + timedelta(days=1)
+
+    return {"daysElapsed": elapsed_days, "daysTotal": total_days}
+
+
+def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_load_date: date) -> dict:
+    """
+    Parser heurístico para el formato de ejemplo Evolucion Zaragoza.xlsx:
+    - TOTAL{suffix} para Europa total
+    - {ZARAGOZA|LERIDA|ALMOZARA|CORONA}{suffix} para centros
+    - y (opcional) HISTORICO ventas para historyAnnual
+    """
+    suffix = str(cm_year)[-2:]
+    cm_month_idx = cm_month - 1
+    month_name = MONTHS_ES[cm_month_idx]
+
+    # days for projection
+    cm_start, cm_end = commercial_month_bounds(cm_year, cm_month)
+
+    # locality mapping for days
+    loc_tot = "zaragoza"
+
+    days = compute_days_elapsed_and_total(loc_tot, cm_start, cm_end, last_load_date)
+
+    def find_month_row(ws, label: str) -> int | None:
+        for i, row in enumerate(ws.iter_rows(min_row=1, max_row=120, values_only=True), start=1):
+            # first 2 columns contain month label in this example
+            for j in [0,1]:
+                v = row[j] if j < len(row) else None
+                if v is None:
+                    continue
+                if str(v).strip().upper() == label.upper():
+                    return i
+        return None
+
+    def get_vals_from_row(ws, row_idx: int, offsets: tuple[int,int,int]):
+        row = list(ws.iter_rows(min_row=row_idx, max_row=row_idx, values_only=True))[0]
+        # offsets are 0-based indices
+        b = row[offsets[0]] if len(row) > offsets[0] else None
+        cur = row[offsets[1]] if len(row) > offsets[1] else None
+        prev = row[offsets[2]] if len(row) > offsets[2] else None
+        def as_float(x):
+            if x is None:
+                return None
+            if isinstance(x,(int,float)):
+                return float(x)
+            try:
+                return float(str(x).replace('.','').replace(',','.'))
+            except:
+                return None
+        return as_float(b), as_float(cur), as_float(prev)
+
+    def proj(real, elapsed, total):
+        if real is None or elapsed is None or elapsed <= 0 or total is None:
+            return None
+        return (real / elapsed) * total
+
+    def kpis(real, budget, elapsed, total, yoy_prev):
+        p = proj(real, elapsed, total)
+        pct = (p / budget * 100.0) if (p is not None and budget and budget != 0) else None
+        pace = (real / elapsed) if (real is not None and elapsed and elapsed > 0) else None
+        yoy_real_pct = ((real - yoy_prev) / yoy_prev * 100.0) if (yoy_prev is not None and yoy_prev != 0 and real is not None) else None
+        # yoy proy: build proy for prev with same elapsed/total
+        proy_prev = proj(yoy_prev, elapsed, total) if (yoy_prev is not None) else None
+        yoy_proy_pct = ((p - proy_prev) / proy_prev * 100.0) if (proy_prev and proy_prev != 0 and p is not None) else None
+        var_real = (real - budget) if (real is not None and budget is not None) else None
+        var_proy = (p - budget) if (p is not None and budget is not None) else None
+        return {
+            "real": real,
+            "budget": budget,
+            "projection": p,
+            "pctProyBudget": pct,
+            "pace": pace,
+            "yoyRealPct": yoy_real_pct,
+            "yoyProyPct": yoy_proy_pct,
+            "varRealVsBudget": var_real,
+            "varProyVsBudget": var_proy,
+            "daysElapsed": elapsed,
+            "daysTotal": total,
+        }
+
+    cm_key = f"{cm_year}-{cm_month:02d}"
+
+    # TOTAL Europe
+    total_sheet = f"TOTAL{suffix}"
+    totals = {}
+    if total_sheet in wb.sheetnames:
+        ws = wb[total_sheet]
+        row_idx = find_month_row(ws, month_name)
+        if row_idx:
+            # demo indices for TOTAL sheets: col2=budget, col3=real cur, col4=real prev (0-based 2,3,4)
+            budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=(2,3,4))
+            totals[cm_key] = kpis(real_cur, budget, days["daysElapsed"], days["daysTotal"], real_prev)
+    # Centers
+    centers = {}
+    center_sheets = [s for s in wb.sheetnames if s.endswith(suffix) and any(k in s.upper() for k in ["ZARAGOZA","LERIDA","ALMOZARA","CORONA"])]
+    for sh in center_sheets:
+        ws = wb[sh]
+        row_idx = find_month_row(ws, month_name)
+        if not row_idx:
+            continue
+
+        name_up = sh.upper()
+        if name_up.startswith("ZARAGOZA"):
+            center_id = "ZARAGOZA"
+            offsets = (2,3,4)
+            locality = "zaragoza"
+        elif name_up.startswith("LERIDA"):
+            center_id = "ALCARRAS"
+            offsets = (3,4,5)
+            locality = "lleida"
+        elif name_up.startswith("ALMOZARA"):
+            center_id = "ALMOZARA"
+            offsets = (2,3,4)
+            locality = "zaragoza"
+        elif name_up.startswith("CORONA"):
+            center_id = "CORONA"
+            offsets = (2,3,4)
+            locality = "zaragoza"
+        else:
+            center_id = sh
+            offsets = (2,3,4)
+            locality = "zaragoza"
+
+        # Compute local days (base uses empty local_h for now, but keep locality param)
+        local_days = compute_days_elapsed_and_total(locality, *commercial_month_bounds(cm_year, cm_month), last_load_date)
+        budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=offsets)
+        centers.setdefault(cm_key, {})[center_id] = kpis(real_cur, budget, local_days["daysElapsed"], local_days["daysTotal"], real_prev)
+
+    # History annual (optional) — Europa TOTAL (agregación anual sumando ENERO..DICIEMBRE)
+    historyAnnual = {}
+    if "Historico ventas" in wb.sheetnames:
+        hs = wb["Historico ventas"]
+
+        # Locate TOTAL row index where column A equals 'TOTAL'
+        total_row_idx = None
+        for i in range(1, hs.max_row + 1):
+            v = hs.cell(row=i, column=1).value
+            if v is None:
+                continue
+            if str(v).strip().upper() == "TOTAL":
+                total_row_idx = i
+                break
+
+        if total_row_idx:
+            # Columns B.. contain year labels (2008..)
+            years = []
+            year_cols = []
+            for c in range(2, hs.max_column + 1):
+                y = hs.cell(row=total_row_idx, column=c).value
+                if isinstance(y, (int, float)):
+                    # keep integer year only
+                    yi = int(y)
+                    if 1900 <= yi <= 2100:
+                        years.append(yi)
+                        year_cols.append(c)
+
+            # Month rows are expected to start at TOTAL+1 (ENERO) and continue 12 rows (hasta DICIEMBRE)
+            # This matches the structure of the example workbook.
+            month_rows = [total_row_idx + i for i in range(1, 13)]
+            annual = []
+            for yi, col in zip(years, year_cols):
+                s = 0.0
+                for mr in month_rows:
+                    v = hs.cell(row=mr, column=col).value
+                    if v is None:
+                        continue
+                    if isinstance(v, (int, float)):
+                        s += float(v)
+                    else:
+                        try:
+                            s += float(str(v).strip())
+                        except:
+                            pass
+                # In this workbook the unit is "miles" → convert to euros
+                annual.append((yi, s * 1000.0))
+
+            annual_sorted = sorted(annual, key=lambda x: x[0])
+            for i, (yi, total_eur) in enumerate(annual_sorted):
+                if i == 0:
+                    yoy = None
+                else:
+                    prev = annual_sorted[i - 1][1]
+                    yoy = ((total_eur - prev) / prev * 100.0) if prev else None
+                historyAnnual[str(yi)] = {"total": total_eur, "yoyPct": yoy}
+
+    return {
+        "meta": {"lastLoadDate": last_load_date.isoformat(), "lastRunTs": datetime.now(timezone.utc).isoformat()},
+        "ui": {"monthLabels": {cm_key: f"{MONTHS_ES[cm_month-1].upper()[:3]}-{str(cm_year)[-2:]}"}},
+        "totalsByMonth": totals,
+        "centersByMonth": centers,
+        "vendorsByMonth": {},
+        "historyAnnual": historyAnnual,
+      }
+
+
+def find_generation_datetime(workbook_path: Path, cfg: dict) -> datetime | None:
+    wb = openpyxl.load_workbook(workbook_path, read_only=True, data_only=True)
+    ws = _excel_primary_sheet(wb, cfg)
+    dt = _parse_generacion_datetime_from_sheet(ws)
+    wb.close()
+    return dt
+
+
+def find_fecha_hasta(workbook_path: Path, cfg: dict) -> date | None:
+    wb = openpyxl.load_workbook(workbook_path, read_only=True, data_only=True)
+    ws = _excel_primary_sheet(wb, cfg)
+    d = _parse_fecha_hasta_date_from_sheet(ws)
+    wb.close()
+    return d
+
+
+def compute_last_load_date_local(workbook_gen_dt: datetime | None, workbook_fecha_hasta: date | None, cm_year: int, cm_month: int) -> date:
+    """
+    lastLoadDate (día completo disponible) = fecha de generación si existe; fallback fecha_hasta.
+    Se capea a [inicio mes comercial, min(hoy, fin mes comercial)].
+    """
+    today = datetime.now(ZoneInfo("Europe/Madrid")).date()
+    cm_start, cm_end = commercial_month_bounds(cm_year, cm_month)
+    chosen = None
+    if workbook_gen_dt:
+        chosen = workbook_gen_dt.date()
+    elif workbook_fecha_hasta:
+        chosen = workbook_fecha_hasta
+    else:
+        chosen = today
+
+    if chosen > today:
+        chosen = today
+    if chosen < cm_start:
+        chosen = cm_start
+    if chosen > cm_end:
+        chosen = cm_end
+    return chosen
+
+
+def update_json_payload(payload: dict):
+    existing = {}
+    if JSON_OUT.exists():
+        try:
+            existing = json.loads(JSON_OUT.read_text(encoding="utf-8"))
+        except Exception:
+            existing = {}
+
+    # shallow merge: keep existing for months not updated
+    existing.setdefault("totalsByMonth", {})
+    existing.setdefault("centersByMonth", {})
+    existing.setdefault("vendorsByMonth", {})
+    existing.setdefault("historyAnnual", {})
+    existing.setdefault("ui", {})
+    existing.setdefault("meta", {})
+
+    existing["meta"].update(payload.get("meta", {}))
+    existing["ui"].update(payload.get("ui", {}))
+    for mk, t in (payload.get("totalsByMonth") or {}).items():
+        existing["totalsByMonth"][mk] = t
+    for mk, cdict in (payload.get("centersByMonth") or {}).items():
+        existing["centersByMonth"].setdefault(mk, {})
+        existing["centersByMonth"][mk].update(cdict)
+    for mk, vdict in (payload.get("vendorsByMonth") or {}).items():
+        existing["vendorsByMonth"].setdefault(mk, {})
+        existing["vendorsByMonth"][mk].update(vdict)
+    # historyAnnual: overwrite if provided
+    if payload.get("historyAnnual"):
+        existing["historyAnnual"].update(payload["historyAnnual"])
+
+    JSON_OUT.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def drive_append_workbook_to_tab(cfg: dict, xlsx_path: Path, report_key: str, fecha_gen: datetime | None, fecha_hasta: date | None):
+    if not cfg.get("google_service_account_json"):
+        return
+    if not cfg.get("drive_spreadsheet_id"):
+        log.warning("Falta DRIVE_SPREADSHEET_ID, se salta copia a Drive.")
+        return
+
+    # auth
+    try:
+        sa_info = json.loads(cfg["google_service_account_json"])
+        creds = google.oauth2.service_account.Credentials.from_service_account_info(
+            sa_info,
+            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"],
+        )
+    except Exception as e:
+        log.error(f"No se pudo cargar GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
+        return
+
+    service = build("sheets", "v4", credentials=creds)
+    ss_id = cfg["drive_spreadsheet_id"]
+    tab = cfg["drive_tab"]
+
+    # Idempotence: check if report_key exists in column A
+    try:
+        read = service.spreadsheets().values().get(
+            spreadsheetId=ss_id,
+            range=f"{tab}!A:A",
+            majorDimension="COLUMNS",
+        ).execute()
+        existing_colA = read.get("values", [[]])[0]
+        if report_key in existing_colA:
+            log.info("Drive: report_key ya existe, no se duplica.")
+            return
+    except HttpError as e:
+        log.warning(f"Drive: no se pudo leer idempotencia (se intentará append). {e}")
+
+    # Extract sheet values (primary sheet)
+    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+    ws = _excel_primary_sheet(wb, cfg)
+
+    # Convert to list of rows up to used range
+    max_r = ws.max_row or 0
+    max_c = ws.max_column or 0
+    values = []
+    for r in range(1, max_r + 1):
+        row = []
+        for c in range(1, max_c + 1):
+            row.append(ws.cell(row=r, column=c).value)
+        values.append(row)
+        if r > 5000:
+            break
+    wb.close()
+
+    # Prepend a block header
+    header = [
+        report_key,
+        fecha_gen.isoformat() if fecha_gen else "",
+        fecha_hasta.isoformat() if fecha_hasta else "",
+    ] + [""] * max_c
+    payload = [header]
+    for row in values:
+        payload.append([""] + row)  # shift 1 col to keep report_key column aligned
+
+    # Append
+    try:
+        service.spreadsheets().values().append(
+            spreadsheetId=ss_id,
+            range=f"{tab}!A1",
+            valueInputOption="RAW",
+            insertDataOption="INSERT_ROWS",
+            body={"values": payload},
+        ).execute()
+        log.info("Drive: append OK.")
+    except Exception as e:
+        log.error(f"Drive: append falló: {e}")
+
+
+def main():
+    log.info("=" * 70)
+    log.info("Europa extractor — start")
+    cfg = load_config()
+
+    conn = connect_gmail(cfg)
+    uid = find_latest_email_by_generation(conn, cfg)
+    if uid is None:
+        log.warning("No se encontró email válido.")
+        conn.logout()
+        return
+
+    # Need message object for metadata key
+    _, full = conn.fetch(uid, "(RFC822)")
+    msg = email.message_from_bytes(full[0][1])
+
+    gen_dt = get_excel_generacion_datetime(msg, cfg)
+    fecha_hasta = None
+    # fecha_hasta from the same attachment
+    with tempfile.TemporaryDirectory() as tmp:
+        xlsx = get_excel_attachment_path(conn, uid, cfg, tmp)
+        conn.logout()
+        if xlsx is None:
+            log.error("Adjunto no encontrado.")
+            return
+
+        fecha_hasta = find_fecha_hasta(xlsx, cfg)
+        # comercial month from fecha_hasta (fallback)
+        if fecha_hasta is None:
+            log.error("No se detectó 'Fecha hasta' en Excel.")
+            return
+        cm_year, cm_month = commercial_month_from_fecha_hasta(fecha_hasta)
+        last_load_date = compute_last_load_date_local(gen_dt, fecha_hasta, cm_year, cm_month)
+
+        # report key for idempotence
+        gen_key = gen_dt.isoformat() if gen_dt else "unknown-gen"
+        subj = _decode_header_value(msg.get("Subject"))
+        key = f"{gen_key}::{subj}".replace("\n"," ").strip()
+
+        # Drive copy (optional)
+        try:
+            drive_append_workbook_to_tab(cfg, xlsx, key, gen_dt, fecha_hasta)
+        except Exception as e:
+            log.warning(f"Drive append: se saltó por error: {e}")
+
+        # Build data payload (demo aggregated parser)
+        wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
+        payload = parse_demo_aggregated_from_evolucion(wb, cm_year, cm_month, last_load_date)
+        try:
+            wb.close()
+        except Exception:
+            pass
+
+        update_json_payload(payload)
+
+    log.info("Europa extractor — end")
+
+
+if __name__ == "__main__":
+    main()
+
