@@ -1,7 +1,7 @@
 {
   "meta": {
     "lastLoadDate": "2026-03-30",
-    "lastRunTs": "2026-03-30T13:37:03.790808+00:00",
+    "lastRunTs": "2026-03-30T13:47:00.401035+00:00",
     "notes": "Fallback. En producción, el extractor actualizará este archivo vía GitHub Actions."
   },
   "ui": {
@@ -65,10 +65,65 @@
         "daysElapsed": 16,
         "daysTotal": 22
       }
+    },
+    "2026-04": {
+      "CENTRAL": {
+        "real": null,
+        "budget": null,
+        "projection": null,
+        "pctProyBudget": null,
+        "pace": null,
+        "yoyRealPct": null,
+        "yoyProyPct": null,
+        "varRealVsBudget": null,
+        "varProyVsBudget": null,
+        "daysElapsed": 4,
+        "daysTotal": 26
+      },
+      "CORONA": {
+        "real": null,
+        "budget": null,
+        "projection": null,
+        "pctProyBudget": null,
+        "pace": null,
+        "yoyRealPct": null,
+        "yoyProyPct": null,
+        "varRealVsBudget": null,
+        "varProyVsBudget": null,
+        "daysElapsed": 4,
+        "daysTotal": 26
+      },
+      "ALMOZARA": {
+        "real": null,
+        "budget": null,
+        "projection": null,
+        "pctProyBudget": null,
+        "pace": null,
+        "yoyRealPct": null,
+        "yoyProyPct": null,
+        "varRealVsBudget": null,
+        "varProyVsBudget": null,
+        "daysElapsed": 4,
+        "daysTotal": 26
+      },
+      "ALCARRAS": {
+        "real": null,
+        "budget": null,
+        "projection": null,
+        "pctProyBudget": null,
+        "pace": null,
+        "yoyRealPct": null,
+        "yoyProyPct": null,
+        "varRealVsBudget": null,
+        "varProyVsBudget": null,
+        "daysElapsed": 4,
+        "daysTotal": 26
+      }
     }
   },
   "vendorsByMonth": {
-    "2026-03": {}
+    "2026-03": {},
+    "2026-04": {}
   },
   "historyAnnual": {
     "2009": {
