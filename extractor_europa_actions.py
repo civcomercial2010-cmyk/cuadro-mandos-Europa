@@ -577,20 +577,29 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
     totals = {}
     if total_sheet in wb.sheetnames:
         ws = wb[total_sheet]
-        row_idx = find_month_row(ws, [month_name, month_name_prev])
-        if row_idx:
-            # demo indices for TOTAL sheets: col2=budget, col3=real cur, col4=real prev (0-based 2,3,4)
-            budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=(2,3,4))
-            totals[cm_key] = kpis(real_cur, budget, days["daysElapsed"], days["daysTotal"], real_prev)
+        # Serie mensual del año comercial (enero..diciembre) para selector y gráficos.
+        for m in range(1, 13):
+            m_name = MONTHS_ES[m - 1]
+            row_idx_m = find_month_row(ws, [m_name])
+            if not row_idx_m:
+                continue
+            budget, real_cur, real_prev = get_vals_from_row(ws, row_idx_m, offsets=(2,3,4))
+            mk = f"{cm_year}-{m:02d}"
+            dstart, dend = commercial_month_bounds(cm_year, m)
+            mdays = compute_days_elapsed_and_total("zaragoza", dstart, dend, last_load_date)
+            totals[mk] = kpis(real_cur, budget, mdays["daysElapsed"], mdays["daysTotal"], real_prev)
+
+        # fallback de seguridad para CM actual si no entró por serie
+        if cm_key not in totals:
+            row_idx = find_month_row(ws, [month_name, month_name_prev])
+            if row_idx:
+                budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=(2,3,4))
+                totals[cm_key] = kpis(real_cur, budget, days["daysElapsed"], days["daysTotal"], real_prev)
     # Centers
     centers = {}
     center_sheets = [s for s in wb.sheetnames if s.endswith(suffix) and any(k in s.upper() for k in ["ZARAGOZA","LERIDA","ALMOZARA","CORONA","CENTRAL"])]
     for sh in center_sheets:
         ws = wb[sh]
-        row_idx = find_month_row(ws, [month_name, month_name_prev])
-        if not row_idx:
-            continue
-
         name_up = sh.upper()
         if name_up.startswith("ZARAGOZA") or name_up.startswith("CENTRAL"):
             center_id = "CENTRAL"
@@ -613,26 +622,35 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
             offsets = (2,3,4)
             locality = "zaragoza"
 
-        # Compute local days (base uses empty local_h for now, but keep locality param)
-        local_days = compute_days_elapsed_and_total(locality, *commercial_month_bounds(cm_year, cm_month), last_load_date)
-        budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=offsets)
-        centers.setdefault(cm_key, {})[center_id] = kpis(real_cur, budget, local_days["daysElapsed"], local_days["daysTotal"], real_prev)
+        for m in range(1, 13):
+            m_name = MONTHS_ES[m - 1]
+            row_idx = find_month_row(ws, [m_name])
+            if not row_idx:
+                continue
+            dstart, dend = commercial_month_bounds(cm_year, m)
+            local_days = compute_days_elapsed_and_total(locality, dstart, dend, last_load_date)
+            budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=offsets)
+            mk = f"{cm_year}-{m:02d}"
+            centers.setdefault(mk, {})[center_id] = kpis(real_cur, budget, local_days["daysElapsed"], local_days["daysTotal"], real_prev)
 
     # Rellena centros canónicos faltantes para que siempre aparezcan en frontend.
-    for cid in CENTER_CANON:
-        centers.setdefault(cm_key, {}).setdefault(cid, {
-            "real": None,
-            "budget": None,
-            "projection": None,
-            "pctProyBudget": None,
-            "pace": None,
-            "yoyRealPct": None,
-            "yoyProyPct": None,
-            "varRealVsBudget": None,
-            "varProyVsBudget": None,
-            "daysElapsed": days["daysElapsed"],
-            "daysTotal": days["daysTotal"],
-        })
+    for mk in list(totals.keys()):
+        dstart, dend = commercial_month_bounds(int(mk.split("-")[0]), int(mk.split("-")[1]))
+        mdays = compute_days_elapsed_and_total("zaragoza", dstart, dend, last_load_date)
+        for cid in CENTER_CANON:
+            centers.setdefault(mk, {}).setdefault(cid, {
+                "real": None,
+                "budget": None,
+                "projection": None,
+                "pctProyBudget": None,
+                "pace": None,
+                "yoyRealPct": None,
+                "yoyProyPct": None,
+                "varRealVsBudget": None,
+                "varProyVsBudget": None,
+                "daysElapsed": mdays["daysElapsed"],
+                "daysTotal": mdays["daysTotal"],
+            })
 
     # Vendors (heurístico en hoja VENTAS): col B = nombre, col D = ventas.
     vendorsByMonth = {}
@@ -943,11 +961,11 @@ def update_json_payload(payload: dict):
         except Exception:
             rebuilt_labels[mk] = mk
     existing["ui"]["monthLabels"] = rebuilt_labels
-    # historyAnnual: overwrite if provided
-    if payload.get("historyAnnual"):
-        existing["historyAnnual"].update(payload["historyAnnual"])
-    if payload.get("historyByCenterAnnual"):
-        existing["historyByCenterAnnual"].update(payload["historyByCenterAnnual"])
+    # Histórico: reemplazo completo para evitar mezclar datos "demo" antiguos.
+    if "historyAnnual" in payload:
+        existing["historyAnnual"] = payload.get("historyAnnual") or {}
+    if "historyByCenterAnnual" in payload:
+        existing["historyByCenterAnnual"] = payload.get("historyByCenterAnnual") or {}
 
     JSON_OUT.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 

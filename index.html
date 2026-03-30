@@ -50,9 +50,16 @@
       </div>
     </div>
 
+    <div class="navrow">
+      <button class="navbtn active" id="tab-home" type="button">Resumen ejecutivo</button>
+      <button class="navbtn" id="tab-centers" type="button">Ventas por centro</button>
+      <button class="navbtn" id="tab-history" type="button">Histórico</button>
+      <button class="navbtn" id="tab-vendors" type="button">Vendedores</button>
+    </div>
+
     <!-- VIEW: EJECUTIVO -->
     <div id="view-executivo">
-      <div class="section-card">
+      <div class="section-card tab-pane" data-pane="home">
         <div class="section-head">
           <div>
             <div class="section-title">Cuadro ejecutivo — Proyección mes (KPI clave)</div>
@@ -121,7 +128,7 @@
         </div>
       </div>
 
-      <div class="section-card">
+      <div class="section-card tab-pane" data-pane="home">
         <div class="section-head">
           <div>
             <div class="section-title">Evolución mensual (real / presupuesto / proyección)</div>
@@ -141,7 +148,7 @@
         </div>
       </div>
 
-      <div class="section-card">
+      <div class="section-card tab-pane" data-pane="centers">
         <div class="section-head">
           <div>
             <div class="section-title">Ventas por centro</div>
@@ -168,8 +175,8 @@
       </div>
     </div>
 
-    <!-- VIEW: CENTRO -->
-    <div id="view-centro" style="display:none;">
+    <!-- VIEW: VENDEDORES -->
+    <div id="view-centro" class="tab-pane" data-pane="vendors" style="display:none;">
       <div class="section-card">
         <div class="section-head">
           <div>
@@ -208,7 +215,7 @@
             <div class="section-title">Vendedores</div>
             <div class="section-note">Si faltan ventas por vendedor, se mostrará `—` sin romper el cuadro.</div>
           </div>
-          <button class="navbtn" onclick="goBack()" style="cursor:pointer;">↩ Volver</button>
+          <button class="navbtn" onclick="setActiveTab('home')" style="cursor:pointer;">↩ Volver</button>
         </div>
         <div class="tablewrap">
           <table>
@@ -227,7 +234,7 @@
       </div>
     </div>
 
-      <div class="section-card">
+      <div class="section-card tab-pane" data-pane="history">
         <div class="section-head">
           <div>
             <div class="section-title">Histórico anual (todos los años previos)</div>
@@ -249,7 +256,7 @@
         </div>
       </div>
 
-      <div class="section-card">
+      <div class="section-card tab-pane" data-pane="home">
         <div class="section-head">
           <div>
             <div class="section-title">Rolling 12 meses + YTD</div>
@@ -298,6 +305,7 @@
     let currentCenterId = null;
     let charts = {};
     const CENTER_OPTIONS = ["CENTRAL","CORONA","ALMOZARA","ALCARRAS"];
+    let activeTab = 'home';
 
     function fmtEur(v){
       if(v === null || v === undefined || Number.isNaN(v)) return '—';
@@ -316,6 +324,41 @@
       return Object.keys(state.totalsByMonth || {}).sort();
     }
 
+    function canonicalCenterId(raw){
+      const s = String(raw || '').toUpperCase();
+      if(s.includes('ALCARR') || s.includes('LERIDA') || s.includes('LLEIDA')) return 'ALCARRAS';
+      if(s.includes('ALMOZARA')) return 'ALMOZARA';
+      if(s.includes('CORONA')) return 'CORONA';
+      if(s.includes('CENTRAL') || s.includes('ZARAGOZA') || s.includes('OTROS')) return 'CENTRAL';
+      return s;
+    }
+
+    function getCentersForMonth(mk){
+      const src = state?.centersByMonth?.[mk] || {};
+      const out = {};
+      CENTER_OPTIONS.forEach(c => out[c] = {});
+      Object.keys(src).forEach(k => {
+        const cid = canonicalCenterId(k);
+        if(!CENTER_OPTIONS.includes(cid)) return;
+        const cur = src[k] || {};
+        const prev = out[cid] || {};
+        // suma real/budget/projection para mapear ZARAGOZA+OTROS a CENTRAL
+        const add = (a,b) => ((a ?? 0) + (b ?? 0));
+        out[cid] = {
+          ...prev,
+          ...cur,
+          real: add(prev.real, cur.real),
+          budget: add(prev.budget, cur.budget),
+          projection: add(prev.projection, cur.projection),
+          varRealVsBudget: add(prev.varRealVsBudget, cur.varRealVsBudget),
+          varProyVsBudget: add(prev.varProyVsBudget, cur.varProyVsBudget),
+          daysElapsed: cur.daysElapsed ?? prev.daysElapsed ?? null,
+          daysTotal: cur.daysTotal ?? prev.daysTotal ?? null,
+        };
+      });
+      return out;
+    }
+
     function getMonthLabel(monthKey){
       // monthKey = YYYY-MM, label comes from state.ui maybe, else fallback.
       const mo = (monthKey || '').split('-')[1];
@@ -327,7 +370,8 @@
       const mk = currentMonthKey;
       if(!state || !state.totalsByMonth || !state.totalsByMonth[mk]) return;
       const tTotal = state.totalsByMonth[mk];
-      const tCenter = currentCenterId ? (state.centersByMonth?.[mk]?.[currentCenterId] || null) : null;
+      const centersNorm = getCentersForMonth(mk);
+      const tCenter = currentCenterId ? (centersNorm?.[currentCenterId] || null) : null;
       const t = tCenter || tTotal;
 
       const scope = currentCenterId ? ` · ${currentCenterId}` : '';
@@ -348,7 +392,7 @@
 
       const tbody = document.getElementById('tbody-centers');
       tbody.innerHTML = '';
-      const centers = (state.centersByMonth && state.centersByMonth[mk]) ? state.centersByMonth[mk] : {};
+      const centers = centersNorm;
       const totalRealForShare = tTotal.real ?? 0;
       const centerIds = CENTER_OPTIONS.slice();
       centerIds.forEach(cid => {
@@ -415,9 +459,8 @@
 
     function buildTotalsForEvolution(){
       const mk = currentMonthKey;
-      const keys = getSortedMonthKeys();
-      // keep at most 18 points to keep chart clean
-      const slice = keys.slice(Math.max(0, keys.length - 18));
+      const keys = getSortedMonthKeys().filter(k => k.startsWith('2026-'));
+      const slice = keys.length ? keys : getSortedMonthKeys();
       const labels = slice.map(k => state.ui?.monthLabels?.[k] || getMonthLabel(k));
       const reals = slice.map(k => state.totalsByMonth?.[k]?.real ?? null);
       const budgets = slice.map(k => state.totalsByMonth?.[k]?.budget ?? null);
@@ -546,8 +589,8 @@
 
     function renderCenter(){
       const mk = currentMonthKey;
-      if(!state || !state.centersByMonth || !state.centersByMonth[mk] || !state.centersByMonth[mk][currentCenterId]) return;
-      const c = state.centersByMonth[mk][currentCenterId];
+      const centers = getCentersForMonth(mk);
+      const c = centers[currentCenterId] || {};
 
       setText('center-pill', currentCenterId);
       setText('c-real', fmtEur(c.real));
@@ -558,7 +601,10 @@
       const tbody = document.getElementById('tbody-vendors');
       tbody.innerHTML = '';
       const vendorsByMonth = state.vendorsByMonth?.[mk] || {};
-      const vendorIds = Object.keys(vendorsByMonth).filter(vid => vendorsByMonth[vid]?.centerId === currentCenterId);
+      const vendorIds = Object.keys(vendorsByMonth).filter(vid => {
+        const vc = canonicalCenterId(vendorsByMonth[vid]?.centerId);
+        return currentCenterId ? vc === currentCenterId : true;
+      });
       vendorIds.sort().forEach(vid => {
         const v = vendorsByMonth[vid];
         const cuota = c.real ? (v.real / c.real * 100) : null;
@@ -581,13 +627,31 @@
 
     function openCenter(centerId){
       currentCenterId = centerId;
-      document.getElementById('view-executivo').style.display = 'none';
-      document.getElementById('view-centro').style.display = 'block';
+      const centerSel = document.getElementById('sel-center');
+      if(centerSel) centerSel.value = centerId;
+      setActiveTab('vendors');
       renderCenter();
     }
-    function goBack(){
-      document.getElementById('view-centro').style.display = 'none';
-      document.getElementById('view-executivo').style.display = 'block';
+    function goBack(){ setActiveTab('home'); }
+
+    function setActiveTab(tabId){
+      activeTab = tabId;
+      document.querySelectorAll('.navbtn[id^="tab-"]').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById(`tab-${tabId}`);
+      if(btn) btn.classList.add('active');
+      document.querySelectorAll('.tab-pane').forEach(el => {
+        const show = el.getAttribute('data-pane') === tabId;
+        el.style.display = show ? '' : 'none';
+      });
+      if(tabId === 'vendors'){
+        document.getElementById('view-centro').style.display = '';
+        renderCenter();
+      }
+      if(tabId === 'history') renderHistoryAnnual();
+      if(tabId === 'home') {
+        renderExecutive();
+      }
+      if(tabId === 'centers') renderExecutive();
     }
 
     function syncSelects(){
@@ -613,6 +677,7 @@
         opt.textContent = cid;
         centerSel.appendChild(opt);
       });
+      centerSel.value = currentCenterId || '';
     }
 
     function parseQuery(){
@@ -651,30 +716,26 @@
       currentMonthKey = month || currentMonthKey;
       syncSelects();
 
-      // Default view
-      if(view === 'centro' && center){
-        currentCenterId = center;
-        document.getElementById('view-executivo').style.display = 'none';
-        document.getElementById('view-centro').style.display = 'block';
-        renderCenter();
-      } else {
-        renderExecutive();
-      }
+      if(center) currentCenterId = center;
+      renderExecutive();
+      setActiveTab(view || 'home');
     }
 
     function attachEvents(){
+      document.getElementById('tab-home').addEventListener('click', ()=>setActiveTab('home'));
+      document.getElementById('tab-centers').addEventListener('click', ()=>setActiveTab('centers'));
+      document.getElementById('tab-history').addEventListener('click', ()=>setActiveTab('history'));
+      document.getElementById('tab-vendors').addEventListener('click', ()=>setActiveTab('vendors'));
       document.getElementById('sel-month').addEventListener('change', (e) => {
         currentMonthKey = e.target.value;
-        document.getElementById('view-centro').style.display = 'none';
-        document.getElementById('view-executivo').style.display = 'block';
-        renderExecutive();
+        if(activeTab === 'vendors') renderCenter();
+        else renderExecutive();
       });
       document.getElementById('sel-center').addEventListener('change', (e) => {
         const cid = e.target.value;
         currentCenterId = cid || null;
-        document.getElementById('view-centro').style.display = 'none';
-        document.getElementById('view-executivo').style.display = 'block';
-        renderExecutive();
+        if(activeTab === 'vendors') renderCenter();
+        else renderExecutive();
       });
     }
 
