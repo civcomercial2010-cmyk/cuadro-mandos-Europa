@@ -429,6 +429,7 @@ def commercial_month_bounds(cm_year: int, cm_month: int) -> tuple[date, date]:
 
 MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 MONTHS_UP = {m.upper() for m in MONTHS_ES}
+CENTER_CANON = ["CENTRAL", "CORONA", "ALMOZARA", "ALCARRAS"]
 
 
 def compute_days_elapsed_and_total(locality_key: str, cm_start: date, cm_end: date, last_load_date: date) -> dict:
@@ -583,7 +584,7 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
             totals[cm_key] = kpis(real_cur, budget, days["daysElapsed"], days["daysTotal"], real_prev)
     # Centers
     centers = {}
-    center_sheets = [s for s in wb.sheetnames if s.endswith(suffix) and any(k in s.upper() for k in ["ZARAGOZA","LERIDA","ALMOZARA","CORONA"])]
+    center_sheets = [s for s in wb.sheetnames if s.endswith(suffix) and any(k in s.upper() for k in ["ZARAGOZA","LERIDA","ALMOZARA","CORONA","CENTRAL"])]
     for sh in center_sheets:
         ws = wb[sh]
         row_idx = find_month_row(ws, [month_name, month_name_prev])
@@ -591,8 +592,8 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
             continue
 
         name_up = sh.upper()
-        if name_up.startswith("ZARAGOZA"):
-            center_id = "ZARAGOZA"
+        if name_up.startswith("ZARAGOZA") or name_up.startswith("CENTRAL"):
+            center_id = "CENTRAL"
             offsets = (2,3,4)
             locality = "zaragoza"
         elif name_up.startswith("LERIDA"):
@@ -616,6 +617,91 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
         local_days = compute_days_elapsed_and_total(locality, *commercial_month_bounds(cm_year, cm_month), last_load_date)
         budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=offsets)
         centers.setdefault(cm_key, {})[center_id] = kpis(real_cur, budget, local_days["daysElapsed"], local_days["daysTotal"], real_prev)
+
+    # Rellena centros canónicos faltantes para que siempre aparezcan en frontend.
+    for cid in CENTER_CANON:
+        centers.setdefault(cm_key, {}).setdefault(cid, {
+            "real": None,
+            "budget": None,
+            "projection": None,
+            "pctProyBudget": None,
+            "pace": None,
+            "yoyRealPct": None,
+            "yoyProyPct": None,
+            "varRealVsBudget": None,
+            "varProyVsBudget": None,
+            "daysElapsed": days["daysElapsed"],
+            "daysTotal": days["daysTotal"],
+        })
+
+    # Vendors (heurístico en hoja VENTAS): col B = nombre, col D = ventas.
+    vendorsByMonth = {}
+    ws_v = _excel_primary_sheet(wb, {"hoja_excel": "VENTAS"})
+    current_center = None
+    vendor_acc = {}
+
+    def _to_num(v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        try:
+            return float(str(v).replace(".", "").replace(",", ".").strip())
+        except Exception:
+            return None
+
+    def _norm_txt(v):
+        return re.sub(r"\s+", " ", str(v or "").strip()).upper()
+
+    def _detect_center(name_up: str) -> str | None:
+        if "ALCARR" in name_up or "LERIDA" in name_up:
+            return "ALCARRAS"
+        if "ALMOZARA" in name_up:
+            return "ALMOZARA"
+        if "CORONA" in name_up:
+            return "CORONA"
+        if "CENTRAL" in name_up or "ZARAGOZA" in name_up:
+            return "CENTRAL"
+        return None
+
+    for r in range(1, (ws_v.max_row or 0) + 1):
+        raw_name = ws_v.cell(row=r, column=2).value
+        name = str(raw_name).strip() if raw_name is not None else ""
+        if not name:
+            continue
+        name_up = _norm_txt(name)
+        maybe_center = _detect_center(name_up)
+        if maybe_center:
+            current_center = maybe_center
+            continue
+
+        sales = _to_num(ws_v.cell(row=r, column=4).value)
+        if sales is None or sales <= 0:
+            continue
+        if current_center is None:
+            continue
+        if name_up in MONTHS_UP:
+            continue
+
+        # Compartidos: mostrar solo si tienen cifra (ya garantizado arriba).
+        key = (current_center, name.strip())
+        vendor_acc[key] = vendor_acc.get(key, 0.0) + float(sales)
+
+    vendorsByMonth[cm_key] = {}
+    for (center_id, vendor_name), real in vendor_acc.items():
+        cbase = centers.get(cm_key, {}).get(center_id, {})
+        de = cbase.get("daysElapsed") or days["daysElapsed"]
+        dt = cbase.get("daysTotal") or days["daysTotal"]
+        projection = (real / de * dt) if de else None
+        vendor_id = f"{center_id}::{vendor_name}"
+        vendorsByMonth[cm_key][vendor_id] = {
+            "centerId": center_id,
+            "vendorName": vendor_name,
+            "real": real,
+            "projection": projection,
+            "yoyRealPct": None,
+            "budget": None,
+        }
 
     # History annual (optional) — desde 2021 en adelante.
     historyAnnual = {}
@@ -773,7 +859,7 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
         "ui": {"monthLabels": month_labels},
         "totalsByMonth": totals,
         "centersByMonth": centers,
-        "vendorsByMonth": {},
+        "vendorsByMonth": vendorsByMonth,
         "historyAnnual": historyAnnual,
         "historyByCenterAnnual": historyByCenterAnnual,
       }

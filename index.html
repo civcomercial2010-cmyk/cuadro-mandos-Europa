@@ -44,7 +44,7 @@
         <div>
           <div class="muted" style="font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;">Centro</div>
           <select id="sel-center" style="margin-top:6px;padding:10px 12px;border-radius:999px;border:1px solid var(--bdr);background:var(--srf);font-weight:900;color:var(--txt2);">
-            <option value="">Europa (total)</option>
+            <option value="">TODO</option>
           </select>
         </div>
       </div>
@@ -66,6 +66,7 @@
             <div class="label">Ventas real CM (€)</div>
             <div class="value" id="kpi-real">—</div>
             <div class="hint">Acumulado real en el mes comercial</div>
+            <div class="hint" id="kpi-days-mini" style="font-size:11px;margin-top:4px;">Días: — / —</div>
           </div>
           <div class="kpi amber">
             <div class="label">Proyección mes (€)</div>
@@ -123,7 +124,27 @@
       <div class="section-card">
         <div class="section-head">
           <div>
-            <div class="section-title">Centros — Realizado y Proyección</div>
+            <div class="section-title">Evolución mensual (real / presupuesto / proyección)</div>
+            <div class="section-note">Aparece arriba para seguimiento rápido de tendencia y cumplimiento.</div>
+          </div>
+          <div class="pill green">Chart.js</div>
+        </div>
+        <div class="chart-legend">
+          <div class="leg"><span class="leg-line" style="background:rgba(26,86,232,.45);"></span>Real</div>
+          <div class="leg"><span class="leg-line" style="background:rgba(196,122,10,.45);"></span>Presupuesto</div>
+          <div class="leg"><span class="leg-line" style="background:rgba(13,159,110,.35);"></span>Proyección (mes actual)</div>
+        </div>
+        <div class="chart-placeholder" style="height:auto;border:none;background:transparent;padding:0;">
+          <div style="height:260px;">
+            <canvas id="chart-evolution"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <div class="section-title">Ventas por centro</div>
             <div class="section-note">Tabla responsive: en móvil se apila (sin scroll).</div>
           </div>
           <div class="pill blue">Drill-down centro</div>
@@ -212,7 +233,7 @@
             <div class="section-title">Histórico anual (todos los años previos)</div>
             <div class="section-note">Tabla con total anual y YoY (si data.json lo aporta).</div>
           </div>
-          <div class="pill blue">Europa TOTAL</div>
+          <div class="pill blue" id="history-pill">TODO</div>
         </div>
         <div class="tablewrap">
           <table>
@@ -225,26 +246,6 @@
             </thead>
             <tbody id="tbody-history"></tbody>
           </table>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Evolución mensual (real / proyección)</div>
-            <div class="section-note">Gráfico re-escalable: usa los monthKeys disponibles en data.json.</div>
-          </div>
-          <div class="pill green">Chart.js</div>
-        </div>
-        <div class="chart-placeholder" style="height:10px;border:none;background:transparent;margin-top:0;"></div>
-        <div class="chart-legend">
-          <div class="leg"><span class="leg-line" style="background:rgba(26,86,232,.45);"></span>Real</div>
-          <div class="leg"><span class="leg-line" style="background:rgba(13,159,110,.35);"></span>Proyección (mes actual)</div>
-        </div>
-        <div class="chart-placeholder" style="height:auto;border:none;background:transparent;padding:0;">
-          <div style="height:260px;">
-            <canvas id="chart-evolution"></canvas>
-          </div>
         </div>
       </div>
 
@@ -296,6 +297,7 @@
     let currentMonthKey = null;
     let currentCenterId = null;
     let charts = {};
+    const CENTER_OPTIONS = ["CENTRAL","CORONA","ALMOZARA","ALCARRAS"];
 
     function fmtEur(v){
       if(v === null || v === undefined || Number.isNaN(v)) return '—';
@@ -324,9 +326,12 @@
     function renderExecutive(){
       const mk = currentMonthKey;
       if(!state || !state.totalsByMonth || !state.totalsByMonth[mk]) return;
-      const t = state.totalsByMonth[mk];
+      const tTotal = state.totalsByMonth[mk];
+      const tCenter = currentCenterId ? (state.centersByMonth?.[mk]?.[currentCenterId] || null) : null;
+      const t = tCenter || tTotal;
 
-      setText('exec-month-label', state.ui?.monthLabels?.[mk] || getMonthLabel(mk));
+      const scope = currentCenterId ? ` · ${currentCenterId}` : '';
+      setText('exec-month-label', (state.ui?.monthLabels?.[mk] || getMonthLabel(mk)) + scope);
       setText('kpi-real', fmtEur(t.real));
       setText('kpi-proy', fmtEur(t.projection));
       setText('kpi-budget', fmtEur(t.budget));
@@ -337,17 +342,18 @@
 
       setText('days-elapsed', t.daysElapsed != null ? String(t.daysElapsed) : '—');
       setText('days-total', t.daysTotal != null ? String(t.daysTotal) : '—');
+      setText('kpi-days-mini', `Días: ${t.daysElapsed ?? '—'} / ${t.daysTotal ?? '—'}`);
       setText('var-real', fmtEur(t.varRealVsBudget));
       setText('var-proy', fmtEur(t.varProyVsBudget));
 
       const tbody = document.getElementById('tbody-centers');
       tbody.innerHTML = '';
       const centers = (state.centersByMonth && state.centersByMonth[mk]) ? state.centersByMonth[mk] : {};
-      const totalRealForShare = t.real ?? 0;
-      const centerIds = Object.keys(centers).sort();
+      const totalRealForShare = tTotal.real ?? 0;
+      const centerIds = CENTER_OPTIONS.slice();
       centerIds.forEach(cid => {
         const c = centers[cid] || {};
-        const share = totalRealForShare ? (c.real / totalRealForShare * 100) : null;
+        const share = (totalRealForShare && c.real != null) ? (c.real / totalRealForShare * 100) : null;
         const tr = document.createElement('tr');
         const yoyo = c.yoyRealPct != null ? fmtPct(c.yoyRealPct) : '—';
         const pct = c.pctProyBudget != null ? fmtPct(c.pctProyBudget) : '—';
@@ -376,7 +382,11 @@
       const tbody = document.getElementById('tbody-history');
       if(!tbody) return;
       tbody.innerHTML = '';
-      const hist = state?.historyAnnual || {};
+      const histPill = document.getElementById('history-pill');
+      const hist = currentCenterId
+        ? (state?.historyByCenterAnnual?.[currentCenterId] || {})
+        : (state?.historyAnnual || {});
+      if(histPill) histPill.textContent = currentCenterId || 'TODO';
       const keys = Object.keys(hist).sort();
       if(!keys.length){
         const tr = document.createElement('tr');
@@ -410,11 +420,12 @@
       const slice = keys.slice(Math.max(0, keys.length - 18));
       const labels = slice.map(k => state.ui?.monthLabels?.[k] || getMonthLabel(k));
       const reals = slice.map(k => state.totalsByMonth?.[k]?.real ?? null);
+      const budgets = slice.map(k => state.totalsByMonth?.[k]?.budget ?? null);
       const proys = slice.map(k => {
         if(k === mk) return state.totalsByMonth?.[k]?.projection ?? null;
         return null;
       });
-      return {labels, reals, proys};
+      return {labels, reals, budgets, proys};
     }
 
     function renderEvolutionChart(){
@@ -430,6 +441,7 @@
           labels: b.labels,
           datasets: [
             { label: 'Real', data: b.reals, backgroundColor: 'rgba(26,86,232,0.45)', borderRadius: 4, borderWidth: 0 },
+            { label: 'Presupuesto', data: b.budgets, backgroundColor: 'rgba(196,122,10,0.45)', borderRadius: 4, borderWidth: 0 },
             { label: 'Proyección (mes actual)', data: b.proys, backgroundColor: 'rgba(13,159,110,0.28)', borderRadius: 4, borderWidth: 0 }
           ]
         },
@@ -464,8 +476,9 @@
       if(idx < 0) return null;
 
       const last12 = keys.slice(Math.max(0, idx - 11), idx + 1);
-      const prevStart = idx - 12;
-      const prev12 = keys.slice(Math.max(0, prevStart), prevStart + 12);
+      // comparativa solicitada: rolling del mismo mes, 12 meses atrás
+      const prevStart = idx - 24;
+      const prev12 = prevStart >= 0 ? keys.slice(prevStart, prevStart + 12) : [];
       const sum = (arr) => arr.reduce((a,k)=>a + (state.totalsByMonth?.[k]?.real ?? 0), 0);
       const rolling = sum(last12);
       const rollingPrev = sum(prev12);
@@ -551,7 +564,7 @@
         const cuota = c.real ? (v.real / c.real * 100) : null;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td data-label="Vendedor"><span class="pill blue">${vid}</span></td>
+          <td data-label="Vendedor"><span class="pill blue">${v.vendorName || vid}</span></td>
           <td data-label="Real">${fmtEur(v.real)}</td>
           <td data-label="Proy.">${fmtEur(v.projection)}</td>
           <td data-label="YoY">${v.yoyRealPct != null ? fmtPct(v.yoyRealPct) : '—'}</td>
@@ -593,10 +606,8 @@
       currentMonthKey = currentMonthKey || monthKeys[monthKeys.length-1] || null;
       monthSel.value = currentMonthKey || '';
 
-      // center selector: fill from first month (or from current)
-      centerSel.innerHTML = '<option value="">Europa (total)</option>';
-      const centers = state.centersByMonth?.[currentMonthKey] || {};
-      Object.keys(centers).sort().forEach(cid => {
+      centerSel.innerHTML = '<option value="">TODO</option>';
+      CENTER_OPTIONS.forEach(cid => {
         const opt = document.createElement('option');
         opt.value = cid;
         opt.textContent = cid;
@@ -654,21 +665,16 @@
     function attachEvents(){
       document.getElementById('sel-month').addEventListener('change', (e) => {
         currentMonthKey = e.target.value;
-        currentCenterId = null;
         document.getElementById('view-centro').style.display = 'none';
         document.getElementById('view-executivo').style.display = 'block';
         renderExecutive();
       });
       document.getElementById('sel-center').addEventListener('change', (e) => {
         const cid = e.target.value;
-        if(!cid){
-          currentCenterId = null;
-          document.getElementById('view-centro').style.display = 'none';
-          document.getElementById('view-executivo').style.display = 'block';
-          renderExecutive();
-          return;
-        }
-        openCenter(cid);
+        currentCenterId = cid || null;
+        document.getElementById('view-centro').style.display = 'none';
+        document.getElementById('view-executivo').style.display = 'block';
+        renderExecutive();
       });
     }
 
