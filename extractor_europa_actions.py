@@ -526,9 +526,19 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
                     yoy = ((total_eur - prev) / prev * 100.0) if prev else None
                 historyAnnual[str(yi)] = {"total": total_eur, "yoyPct": yoy}
 
+    month_labels = {}
+    for mk in totals.keys():
+        # mk format YYYY-MM
+        try:
+            _y = int(mk.split("-")[0])
+            _m = int(mk.split("-")[1])
+            month_labels[mk] = f"{MONTHS_ES[_m-1].upper()[:3]}-{str(_y)[-2:]}"
+        except Exception:
+            month_labels[mk] = mk
+
     return {
         "meta": {"lastLoadDate": last_load_date.isoformat(), "lastRunTs": datetime.now(timezone.utc).isoformat()},
-        "ui": {"monthLabels": {cm_key: f"{MONTHS_ES[cm_month-1].upper()[:3]}-{str(cm_year)[-2:]}"}},
+        "ui": {"monthLabels": month_labels},
         "totalsByMonth": totals,
         "centersByMonth": centers,
         "vendorsByMonth": {},
@@ -590,10 +600,10 @@ def update_json_payload(payload: dict):
     existing.setdefault("vendorsByMonth", {})
     existing.setdefault("historyAnnual", {})
     existing.setdefault("ui", {})
+    existing["ui"].setdefault("monthLabels", {})
     existing.setdefault("meta", {})
 
     existing["meta"].update(payload.get("meta", {}))
-    existing["ui"].update(payload.get("ui", {}))
     for mk, t in (payload.get("totalsByMonth") or {}).items():
         existing["totalsByMonth"][mk] = t
     for mk, cdict in (payload.get("centersByMonth") or {}).items():
@@ -602,6 +612,17 @@ def update_json_payload(payload: dict):
     for mk, vdict in (payload.get("vendorsByMonth") or {}).items():
         existing["vendorsByMonth"].setdefault(mk, {})
         existing["vendorsByMonth"][mk].update(vdict)
+
+    # monthLabels: solo para meses que realmente tienen datos en totalsByMonth
+    incoming_labels = (payload.get("ui") or {}).get("monthLabels") or {}
+    for mk, lbl in incoming_labels.items():
+        if mk in existing["totalsByMonth"]:
+            existing["ui"]["monthLabels"][mk] = lbl
+
+    # Limpieza: eliminar labels de meses que no existen en totalsByMonth
+    for mk in list(existing["ui"]["monthLabels"].keys()):
+        if mk not in existing["totalsByMonth"]:
+            del existing["ui"]["monthLabels"][mk]
     # historyAnnual: overwrite if provided
     if payload.get("historyAnnual"):
         existing["historyAnnual"].update(payload["historyAnnual"])
