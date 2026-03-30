@@ -297,13 +297,23 @@ def compute_days_elapsed_and_total(locality_key: str, cm_start: date, cm_end: da
     years = list({cm_start.year, cm_end.year, last_load_date.year})
     national_h = set()
     for y in years:
-        for d,_ in cal.holidays(y):
+        for d, _ in cal.holidays(y):
             national_h.add(d)
 
-    # Local holidays optional config
+    # Festivos LOCALES de la ciudad (requisito 8)
+    # Zaragoza (ciudad): San Valero (29/01) y Cincomarzada (05/03)
+    # Lleida (ciudad): San Anastasio (12/05) y Sant Miquel (29/09)
+    # Nota: aquí aplicamos fechas locales para los años 2025-2026 requeridos.
+    # Si más adelante necesitáis otros años, extendemos el mapa.
     local_h = set()
-    # For this base version: keep empty (require user to provide festivos_locales.json in production).
-    # A future refinement will load `festivos_locales.json`.
+    if locality_key.lower() == "zaragoza":
+        for y in years:
+            local_h.add(date(y, 1, 29))
+            local_h.add(date(y, 3, 5))
+    elif locality_key.lower() == "lleida":
+        for y in years:
+            local_h.add(date(y, 5, 12))
+            local_h.add(date(y, 9, 29))
 
     def is_workday(d: date) -> bool:
         if d.weekday() > 5:  # 0=Mon .. 6=Sun
