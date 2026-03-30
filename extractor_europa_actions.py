@@ -77,7 +77,7 @@ def load_config() -> dict:
         "carpeta_busqueda": os.environ.get("IMAP_FOLDER", "INBOX"),
         "asunto_contiene": os.environ.get("ASUNTO_FILTRO", "Informe ventas muebles"),
         "remitente_contiene": os.environ.get("REMITENTE", "reportes@hipopotamo.com"),
-        "nombre_adjunto": os.environ.get("NOMBRE_ADJUNTO", "Informe ventas muebles xlsx"),
+        "nombre_adjunto": os.environ.get("NOMBRE_ADJUNTO", ""),
         "buscar_ultimas_horas": int(os.environ.get("BUSCAR_ULTIMAS_HORAS", "96")),
 
         # Excel parsing
@@ -217,6 +217,21 @@ def _part_filename_normalized(part) -> str:
     return ""
 
 
+def _normalize_name_token(s: str) -> str:
+    """
+    Normaliza nombres para comparar patrones de adjuntos:
+    - minúsculas
+    - quita extensión xlsx/xlsm/xls
+    - elimina todo lo no alfanumérico
+    """
+    if not s:
+        return ""
+    s = s.lower().strip().replace(".xlmx", ".xlsx")
+    s = re.sub(r"\.(xlsx|xlsm|xls)$", "", s)
+    s = re.sub(r"[^a-z0-9áéíóúüñ]+", "", s)
+    return s
+
+
 def _is_excel_mime(part) -> bool:
     ctype = (part.get_content_type() or "").lower()
     if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
@@ -227,15 +242,33 @@ def _is_excel_mime(part) -> bool:
     return False
 
 
+def _is_attachment_like(part) -> bool:
+    disp = (part.get("Content-Disposition") or "").lower()
+    if "attachment" in disp:
+        return True
+    # algunos sistemas marcan inline aunque sea archivo
+    if "inline" in disp and (part.get_filename() or part.get_param("name")):
+        return True
+    return False
+
+
 def _is_matching_excel_part(part, nombre_cfg: str) -> tuple[bool, str]:
     """Devuelve (es_adj_excel, filename_normalized)."""
     fn_norm = _part_filename_normalized(part)
     has_xlsx_name = fn_norm.endswith(".xlsx")
     is_excel = has_xlsx_name or _is_excel_mime(part)
     if not is_excel:
+        # fallback permisivo para correos MIME "raros":
+        # si no hay filtro de nombre, aceptar adjunto binario e intentar parseo posterior.
+        if not nombre_cfg and _is_attachment_like(part):
+            payload = part.get_payload(decode=True)
+            if payload and len(payload) > 200:
+                return True, fn_norm
         return False, fn_norm
     if nombre_cfg and fn_norm:
-        if nombre_cfg not in fn_norm and fn_norm not in nombre_cfg:
+        cfg_key = _normalize_name_token(nombre_cfg)
+        fn_key = _normalize_name_token(fn_norm)
+        if cfg_key and fn_key and (cfg_key not in fn_key and fn_key not in cfg_key):
             return False, fn_norm
     return True, fn_norm
 
@@ -248,6 +281,16 @@ def _message_has_matching_xlsx(msg, cfg: dict) -> bool:
         if ok:
             return True
     return False
+
+
+def _message_parts_debug(msg) -> list[str]:
+    rows = []
+    for i, part in enumerate(msg.walk()):
+        ctype = (part.get_content_type() or "").lower()
+        fn = _part_filename_normalized(part)
+        disp = (part.get("Content-Disposition") or "").strip()
+        rows.append(f"part#{i} ctype={ctype} fn='{fn}' disp='{disp}'")
+    return rows
 
 
 def _email_header_datetime(msg) -> datetime | None:
@@ -317,6 +360,8 @@ def find_latest_email_by_generation(conn, cfg: dict) -> bytes | None:
 
         if not _message_has_matching_xlsx(msg, cfg):
             log.info(f"UID {uid.decode()}: sin adjunto .xlsx válido, descartado")
+            for row in _message_parts_debug(msg):
+                log.info(f"UID {uid.decode()}: {row}")
             continue
 
         gen_dt = get_excel_generacion_datetime(msg, cfg)
