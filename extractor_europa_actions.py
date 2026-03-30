@@ -400,6 +400,23 @@ def commercial_month_from_fecha_hasta(d: date) -> tuple[int, int]:
     return d.year, d.month + 1
 
 
+def commercial_month_from_reference(
+    workbook_gen_dt: datetime | None,
+    workbook_fecha_hasta: date | None,
+) -> tuple[int, int]:
+    """
+    Mes comercial con prioridad:
+    1) fecha/hora de generación (día real disponible)
+    2) fallback fecha_hasta
+    """
+    if workbook_gen_dt is not None:
+        return commercial_month_from_fecha_hasta(workbook_gen_dt.date())
+    if workbook_fecha_hasta is not None:
+        return commercial_month_from_fecha_hasta(workbook_fecha_hasta)
+    today = datetime.now(ZoneInfo("Europe/Madrid")).date()
+    return commercial_month_from_fecha_hasta(today)
+
+
 def commercial_month_bounds(cm_year: int, cm_month: int) -> tuple[date, date]:
     """Inicio/fin civil del mes comercial: 26 del mes civil anterior → 25 del mes siguiente."""
     if cm_month == 1:
@@ -941,7 +958,7 @@ def main():
             log.error("No se detectó 'Fecha hasta' en Excel local.")
             return
 
-        cm_year, cm_month = commercial_month_from_fecha_hasta(fecha_hasta)
+        cm_year, cm_month = commercial_month_from_reference(gen_dt, fecha_hasta)
         last_load_date = compute_last_load_date_local(gen_dt, fecha_hasta, cm_year, cm_month)
 
         # Drive append opcional también en modo local (idempotente)
@@ -983,11 +1000,11 @@ def main():
             return
 
         fecha_hasta = find_fecha_hasta(xlsx, cfg)
-        # comercial month from fecha_hasta (fallback)
-        if fecha_hasta is None:
-            log.error("No se detectó 'Fecha hasta' en Excel.")
+        # Mes comercial: prioridad fecha de generación, fallback fecha_hasta.
+        if fecha_hasta is None and gen_dt is None:
+            log.error("No se detectó ni 'Fecha generación' ni 'Fecha hasta' en Excel.")
             return
-        cm_year, cm_month = commercial_month_from_fecha_hasta(fecha_hasta)
+        cm_year, cm_month = commercial_month_from_reference(gen_dt, fecha_hasta)
         last_load_date = compute_last_load_date_local(gen_dt, fecha_hasta, cm_year, cm_month)
 
         # report key for idempotence
