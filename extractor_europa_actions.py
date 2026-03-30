@@ -285,6 +285,7 @@ def commercial_month_bounds(cm_year: int, cm_month: int) -> tuple[date, date]:
 
 
 MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+MONTHS_UP = {m.upper() for m in MONTHS_ES}
 
 
 def compute_days_elapsed_and_total(locality_key: str, cm_start: date, cm_end: date, last_load_date: date) -> dict:
@@ -469,10 +470,92 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
         budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=offsets)
         centers.setdefault(cm_key, {})[center_id] = kpis(real_cur, budget, local_days["daysElapsed"], local_days["daysTotal"], real_prev)
 
-    # History annual (optional) — Europa TOTAL (agregación anual sumando ENERO..DICIEMBRE)
+    # History annual (optional) — desde 2021 en adelante.
     historyAnnual = {}
+    historyByCenterAnnual = {}
     if "Historico ventas" in wb.sheetnames:
         hs = wb["Historico ventas"]
+
+        def _safe_float(v):
+            if v is None:
+                return None
+            if isinstance(v, (int, float)):
+                return float(v)
+            try:
+                return float(str(v).strip().replace(",", "."))
+            except Exception:
+                return None
+
+        # Parse blocks (ZARAGOZA, ALCARRAS, ALMOZARA, TOTAL, CORONA...)
+        # Pattern expected:
+        # row R: center name + year headers in cols B.. (2008..2026)
+        # rows R+1..R+12: ENERO..DICIEMBRE values by year
+        candidate_centers = {"ZARAGOZA", "ALCARRAS", "ALCARRÁS", "ALMOZARA", "TOTAL", "CORONA"}
+        for r in range(1, hs.max_row + 1):
+            c0 = hs.cell(row=r, column=1).value
+            if c0 is None:
+                continue
+            center_raw = str(c0).strip().upper()
+            if center_raw not in candidate_centers:
+                continue
+
+            # Validate that next row looks like a month row
+            month_probe = hs.cell(row=r + 1, column=1).value
+            if month_probe is None or str(month_probe).strip().upper() not in MONTHS_UP:
+                continue
+
+            center_key = center_raw.replace("Á", "A")
+            if center_key == "ALCARRAS":
+                center_key = "ALCARRAS"
+
+            # Year columns on this center header row
+            year_cols = []
+            for c in range(2, hs.max_column + 1):
+                yv = _safe_float(hs.cell(row=r, column=c).value)
+                if yv is None:
+                    continue
+                yi = int(yv)
+                if 1900 <= yi <= 2100:
+                    year_cols.append((yi, c))
+
+            if not year_cols:
+                continue
+
+            # Sum ENERO..DICIEMBRE (12 rows)
+            annual_map = {}
+            for yi, col in year_cols:
+                s = 0.0
+                for rr in range(r + 1, r + 13):
+                    mv = hs.cell(row=rr, column=1).value
+                    if mv is None:
+                        continue
+                    if str(mv).strip().upper() not in MONTHS_UP:
+                        continue
+                    vv = _safe_float(hs.cell(row=rr, column=col).value)
+                    if vv is None:
+                        continue
+                    s += vv
+                # En esta hoja está en miles de euros => convertir a euros
+                annual_map[yi] = s * 1000.0
+
+            # Keep only 2021+ as requested
+            annual_map = {y: v for y, v in annual_map.items() if y >= 2021}
+            if not annual_map:
+                continue
+
+            # Build with YoY
+            years_sorted = sorted(annual_map.keys())
+            out = {}
+            prev_val = None
+            for yi in years_sorted:
+                val = annual_map[yi]
+                yoy = None
+                if prev_val is not None and prev_val != 0:
+                    yoy = (val - prev_val) / prev_val * 100.0
+                out[str(yi)] = {"total": val, "yoyPct": yoy}
+                prev_val = val
+
+            historyByCenterAnnual[center_key] = out
 
         # Locate TOTAL row index where column A equals 'TOTAL'
         total_row_idx = None
@@ -519,6 +602,8 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
 
             annual_sorted = sorted(annual, key=lambda x: x[0])
             for i, (yi, total_eur) in enumerate(annual_sorted):
+                if yi < 2021:
+                    continue
                 if i == 0:
                     yoy = None
                 else:
@@ -543,6 +628,7 @@ def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_l
         "centersByMonth": centers,
         "vendorsByMonth": {},
         "historyAnnual": historyAnnual,
+        "historyByCenterAnnual": historyByCenterAnnual,
       }
 
 
@@ -599,6 +685,7 @@ def update_json_payload(payload: dict):
     existing.setdefault("centersByMonth", {})
     existing.setdefault("vendorsByMonth", {})
     existing.setdefault("historyAnnual", {})
+    existing.setdefault("historyByCenterAnnual", {})
     existing.setdefault("ui", {})
     existing["ui"].setdefault("monthLabels", {})
     existing.setdefault("meta", {})
@@ -626,6 +713,8 @@ def update_json_payload(payload: dict):
     # historyAnnual: overwrite if provided
     if payload.get("historyAnnual"):
         existing["historyAnnual"].update(payload["historyAnnual"])
+    if payload.get("historyByCenterAnnual"):
+        existing["historyByCenterAnnual"].update(payload["historyByCenterAnnual"])
 
     JSON_OUT.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
