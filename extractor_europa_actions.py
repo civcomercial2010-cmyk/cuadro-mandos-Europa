@@ -1,1144 +1,749 @@
+#!/usr/bin/env python3
 """
-extractor_europa_actions.py
-===========================
-Extractor para Hipopótamo Europa — versión de producción (base).
-
-Requisitos que cubre ya:
-1) IMAP: descarga adjunto .xlsx
-2) Selección del Excel MÁS reciente por fecha/hora de generación (y empate por UID IMAP mayor)
-3) Construcción base de data.json agregando por centro y métricas de proyección
-4) Fallback para frontend (si faltan datos, el HTML muestra —)
-5) Drive: copia append idempotente a pestaña `Datos` (por key fecha_generacion+adjunto)
-
-Lo que requiere ajuste fino (y que pediré al usuario con el sheet histórico y festivos locales):
-- parse exacto de centro/vendedor desde el Excel ERP (hoja/estructura real)
-- histórico centro↔vendedor con vigencias (sheet en Drive)
-- festivos locales Zaragoza/Lleida para todos los años relevantes
+extractor_europa_actions.py  –  Hipopótamo Europa S.L.
+Flujo: Gmail IMAP → Excel ERP → data.json (GitHub Pages)
 """
-
-import imaplib
-import email
-import email.header
-import json
-import logging
-import os
-import re
-import sys
-import tempfile
-from datetime import datetime, date, timedelta, timezone
+import os, re, json, imaplib, email, tempfile, traceback
+from email.header import decode_header
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
+import openpyxl
 
+# ── Deps opcionales (Google Sheets / Drive) ────────────────────────────────────
 try:
-    import openpyxl
+    from google.oauth2.service_account import Credentials
+    from googleapiclient.discovery import build
+    HAS_GOOGLE = True
 except ImportError:
-    sys.exit("ERROR: install openpyxl")
+    HAS_GOOGLE = False
 
-from workalendar.europe.spain import Spain
+# ── Festivos 2025-2026 (nacionales España + Aragón + Lleida) ──────────────────
+FESTIVOS_ZARAGOZA = {
+    "2025-01-01","2025-01-06","2025-04-17","2025-04-18",
+    "2025-04-23","2025-05-01","2025-10-12","2025-11-01",
+    "2025-12-06","2025-12-08","2025-12-25",
+    "2026-01-01","2026-01-06","2026-04-02","2026-04-03",
+    "2026-04-23","2026-05-01","2026-10-12","2026-11-01",
+    "2026-12-07","2026-12-08","2026-12-25",
+}
+FESTIVOS_LLEIDA = {
+    "2025-01-01","2025-01-06","2025-04-17","2025-04-18",
+    "2025-05-01","2025-06-24","2025-09-11","2025-10-12",
+    "2025-11-01","2025-12-08","2025-12-25","2025-12-26",
+    "2026-01-01","2026-01-06","2026-04-02","2026-04-03",
+    "2026-05-01","2026-06-24","2026-09-11","2026-10-12",
+    "2026-11-01","2026-12-08","2026-12-25","2026-12-26",
+}
 
-import google.oauth2.service_account
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+# ── Canal → Centro mapping ────────────────────────────────────────────────────
+CANAL_MAP = {
+    "ZARAGOZA":         "CENTRAL",
+    "CENTRAL":          "CENTRAL",
+    "LERIDA":           "ALCARRAS",
+    "LÉRIDA":           "ALCARRAS",
+    "ALCARRAS":         "ALCARRAS",
+    "ALMOZARA":         "ALMOZARA",
+    "CORONA DE ARAGON": "CORONA",
+    "CORONA DE ARAGÓN": "CORONA",
+    "CORONA":           "CORONA",
+}
+
+# ── Presupuesto 2026 por mes y centro ─────────────────────────────────────────
+BUDGET_26 = {
+    1:  {"CENTRAL":139000,"ALCARRAS":179000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":437000},
+    2:  {"CENTRAL":129000,"ALCARRAS":197000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":445000},
+    3:  {"CENTRAL":129000,"ALCARRAS":179000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":427000},
+    4:  {"CENTRAL":129000,"ALCARRAS":179000,"ALMOZARA":29000,"CORONA":80000,"TOTAL":417000},
+    5:  {"CENTRAL":129000,"ALCARRAS":189000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":437000},
+    6:  {"CENTRAL":109000,"ALCARRAS":179000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":407000},
+    7:  {"CENTRAL":109000,"ALCARRAS":179000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":407000},
+    8:  {"CENTRAL":109000,"ALCARRAS":179000,"ALMOZARA":29000,"CORONA":80000,"TOTAL":397000},
+    9:  {"CENTRAL":129000,"ALCARRAS":219000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":467000},
+    10: {"CENTRAL":129000,"ALCARRAS":219000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":467000},
+    11: {"CENTRAL":149000,"ALCARRAS":179000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":447000},
+    12: {"CENTRAL":109000,"ALCARRAS":159000,"ALMOZARA":39000,"CORONA":80000,"TOTAL":387000},
+}
+
+# ── Datos históricos estáticos (reales confirmados, en euros) ─────────────────
+HIST_CENTRAL = {
+    "2021":[127000,94000,117000,109000,85000,129000,104000,118000,105000,109000,156000,79000],
+    "2022":[132000,102000,110000,109000,99000,96000,100000,117000,103000,131000,156000,79000],
+    "2023":[88000,123000,113000,127000,119000,80000,76000,95000,103000,106000,132000,87000],
+    "2024":[101506,134080,123046,101291,129094,68234,84369,86137,101560,89058,146000,80000],
+    "2025":[134241,90429,100762,101291,91000,59000,87000,85000,111000,108000,109000,80000],
+}
+HIST_ALCARRAS = {
+    "2021":[74000,23000,134000,141000,158000,158000,150000,148000,171000,195000,129000,126000],
+    "2022":[135134,123538,129766,168079,145953,144920,109836,174999,151372,151996,128876,126322],
+    "2023":[123158,175111,103496,115414,154750,158397,175256,122980,187436,188734,198200,114878],
+    "2024":[141770,191828,128271,130955,158339,148447,182127,141899,146927,162587,197000,145000],
+    "2025":[158490,182979,149535,167279,174381,143252,169986,151958,199832,197779,141503,111000],
+}
+HIST_ALMOZARA = {
+    "2024":[22239,23363,35191,20000,28000,27000,19000,10000,51000,52000,36000,25000],
+    "2025":[34694,32289,28364,19000,24000,26000,20000,14000,24000,21000,22000,15000],
+}
+HIST_CORONA = {
+    "2025":[30504,86471,60831,39462,56857,49123,48907,29502,77502,58752,50845,31172],
+}
+
+# ── Datos mensuales 2025 y 2026 confirmados por centro ────────────────────────
+MONTHLY_BY_CENTER = {
+    "2025": {
+        1:{"CENTRAL":134241,"ALCARRAS":158490,"ALMOZARA":34694,"CORONA":30504},
+        2:{"CENTRAL":90429, "ALCARRAS":182979,"ALMOZARA":32289,"CORONA":86471},
+        3:{"CENTRAL":100762,"ALCARRAS":149535,"ALMOZARA":28364,"CORONA":60831},
+        4:{"CENTRAL":101291,"ALCARRAS":167279,"ALMOZARA":19000,"CORONA":39462},
+        5:{"CENTRAL":91000, "ALCARRAS":174381,"ALMOZARA":24000,"CORONA":56857},
+        6:{"CENTRAL":59000, "ALCARRAS":143252,"ALMOZARA":26000,"CORONA":49123},
+        7:{"CENTRAL":87000, "ALCARRAS":169986,"ALMOZARA":20000,"CORONA":48907},
+        8:{"CENTRAL":85000, "ALCARRAS":151958,"ALMOZARA":14000,"CORONA":29502},
+        9:{"CENTRAL":111000,"ALCARRAS":199832,"ALMOZARA":24000,"CORONA":77502},
+        10:{"CENTRAL":108000,"ALCARRAS":197779,"ALMOZARA":21000,"CORONA":58752},
+        11:{"CENTRAL":109000,"ALCARRAS":141503,"ALMOZARA":22000,"CORONA":50845},
+        12:{"CENTRAL":80000, "ALCARRAS":111000,"ALMOZARA":15000,"CORONA":31172},
+    },
+    "2026": {
+        1:{"CENTRAL":104424,"ALCARRAS":194066,"ALMOZARA":23491,"CORONA":40286},
+        2:{"CENTRAL":122057,"ALCARRAS":222208,"ALMOZARA":31791,"CORONA":38567},
+        3:{"CENTRAL":107997,"ALCARRAS":141522,"ALMOZARA":20950,"CORONA":34211},
+    },
+}
+
+TOTAL_MONTHLY = {
+    2023:[202945,297824,216672,242818,274082,238758,251016,217911,290767,294400,329986,202116],
+    2024:[265515,350421,286508,252700,315800,246211,285907,245262,299321,305765,391524,256428],
+    2025:[357929,392168,339492,322682,346288,278616,326300,280499,411993,385315,323646,248123],
+}
 
 
-REPO_DIR = Path(".")
-JSON_OUT = REPO_DIR / "data.json"
-LOG_FILE = REPO_DIR / "extractor_europa_actions.log"
+# ─────────────────────────────────────────────────────────────────────────────
+#  CALENDARIO - Días laborables (Lun-Sáb) con festivos
+# ─────────────────────────────────────────────────────────────────────────────
+def contar_dias_laborables(desde: date, hasta: date, festivos: set) -> int:
+    """Cuenta días Lun-Sáb que no sean festivos, desde <= hasta."""
+    count = 0
+    d = desde
+    while d <= hasta:
+        if d.weekday() != 6:  # 6 = domingo
+            if d.strftime("%Y-%m-%d") not in festivos:
+                count += 1
+        d += timedelta(days=1)
+    return count
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[logging.FileHandler(LOG_FILE, encoding="utf-8"), logging.StreamHandler(sys.stdout)],
-)
-log = logging.getLogger(__name__)
+
+def get_commercial_month(ref_date: date):
+    """
+    Devuelve (year, month) del mes comercial al que pertenece ref_date.
+    Mes comercial: del 26 del mes anterior al 25 del mes actual.
+    """
+    if ref_date.day >= 26:
+        # Entramos en el siguiente mes comercial
+        if ref_date.month == 12:
+            return ref_date.year + 1, 1
+        return ref_date.year, ref_date.month + 1
+    return ref_date.year, ref_date.month
 
 
-def _decode_header_value(raw) -> str:
-    if raw is None:
-        return ""
-    parts = email.header.decode_header(raw)
-    decoded = []
-    for chunk, enc in parts:
-        if isinstance(chunk, bytes):
-            decoded.append(chunk.decode(enc or "utf-8", errors="replace"))
+def get_commercial_period(com_year: int, com_month: int):
+    """Devuelve (inicio, fin) del mes comercial (inicio=26 del mes anterior)."""
+    if com_month == 1:
+        inicio = date(com_year - 1, 12, 26)
+    else:
+        inicio = date(com_year, com_month - 1, 26)
+    fin = date(com_year, com_month, 25)
+    return inicio, fin
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  IMAP – Búsqueda y descarga del adjunto ERP
+# ─────────────────────────────────────────────────────────────────────────────
+def imap_connect():
+    user = os.environ["GMAIL_USER"]
+    pwd  = os.environ["GMAIL_PASSWORD"]
+    host = os.environ.get("IMAP_HOST", "imap.gmail.com")
+    M = imaplib.IMAP4_SSL(host)
+    M.login(user, pwd)
+    return M
+
+
+def decode_str(s):
+    parts = decode_header(s)
+    result = ""
+    for part, enc in parts:
+        if isinstance(part, bytes):
+            result += part.decode(enc or "utf-8", errors="replace")
         else:
-            decoded.append(chunk)
-    return " ".join(decoded).strip()
+            result += str(part)
+    return result
 
 
-def load_config() -> dict:
-    # Gmail / IMAP
-    cfg = {
-        "email": os.environ.get("GMAIL_USER", ""),
-        "password_app": os.environ.get("GMAIL_PASSWORD", ""),
-        "imap_server": os.environ.get("IMAP_SERVER", "imap.gmail.com"),
-        "imap_port": int(os.environ.get("IMAP_PORT", "993")),
-        "carpeta_busqueda": os.environ.get("IMAP_FOLDER", "INBOX"),
-        "asunto_contiene": os.environ.get("ASUNTO_FILTRO", "Informe ventas muebles"),
-        "remitente_contiene": os.environ.get("REMITENTE", "reportes@hipopotamo.com"),
-        "nombre_adjunto": os.environ.get("NOMBRE_ADJUNTO", ""),
-        "buscar_ultimas_horas": int(os.environ.get("BUSCAR_ULTIMAS_HORAS", "96")),
-
-        # Excel parsing
-        "hoja_excel": os.environ.get("HOJA_EXCEL", "VENTAS"),
-
-        # Drive/Sheets
-        "drive_spreadsheet_id": os.environ.get("DRIVE_SPREADSHEET_ID", ""),
-        "drive_tab": os.environ.get("DRIVE_TAB", "Datos"),
-        "drive_key_column": os.environ.get("DRIVE_KEY_COLUMN", "A"),
-    }
-
-    # Drive service account
-    cfg["google_service_account_json"] = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-    if not cfg["email"] or not cfg["password_app"]:
-        log.error("Faltan GMAIL_USER o GMAIL_PASSWORD en GitHub Secrets.")
-        sys.exit(1)
-    if not cfg["google_service_account_json"]:
-        log.warning("No se encontró GOOGLE_SERVICE_ACCOUNT_JSON. Drive copy se saltará.")
-
-    # If user passes spreadsheet id through env, great. Otherwise fail later.
-    return cfg
+def find_excel_attachment(msg):
+    """Extrae el primer adjunto .xlsx del mensaje."""
+    for part in msg.walk():
+        ct = part.get_content_type()
+        cd = part.get("Content-Disposition", "")
+        fn = part.get_filename()
+        if fn:
+            fn = decode_str(fn)
+        is_excel = (
+            fn and fn.lower().endswith(".xlsx")
+        ) or ct in (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/octet-stream",
+        )
+        if is_excel and fn:
+            return part.get_payload(decode=True), fn
+    return None, None
 
 
-def connect_gmail(cfg: dict) -> imaplib.IMAP4_SSL:
-    conn = imaplib.IMAP4_SSL(cfg["imap_server"], int(cfg["imap_port"]))
-    conn.login(cfg["email"], cfg["password_app"])
-    return conn
+def fetch_latest_erp_excel():
+    """
+    Busca el correo más reciente con adjunto ERP, lo descarga y devuelve
+    (bytes_excel, filename, uid, fecha_generacion_desde_fichero).
+    """
+    asunto_filtro = os.environ.get("ASUNTO_FILTRO", "Informe_ventas")
+    remitente     = os.environ.get("REMITENTE", "")
+
+    M = imap_connect()
+    M.select("INBOX")
+
+    # Construir criterio de búsqueda
+    criteria = ["ALL"]
+    if remitente:
+        criteria = [f'FROM "{remitente}"']
+    if asunto_filtro:
+        criteria.append(f'SUBJECT "{asunto_filtro}"')
+
+    search_str = " ".join(criteria) if len(criteria) > 1 else criteria[0]
+    status, data = M.search(None, search_str)
+    if status != "OK" or not data[0]:
+        # Fallback: buscar por nombre de adjunto común
+        status, data = M.search(None, 'SUBJECT "ventas"')
+
+    uids = data[0].split() if data[0] else []
+    if not uids:
+        M.logout()
+        raise RuntimeError("No se encontró correo ERP en INBOX")
+
+    # Ordenar por UID descendente → más reciente primero
+    best_uid = None
+    best_data = (None, None)
+    best_fecha = date(2000, 1, 1)
+
+    for uid in reversed(uids[-20:]):  # Revisar últimos 20
+        status, msg_data = M.fetch(uid, "(RFC822)")
+        if status != "OK":
+            continue
+        raw = msg_data[0][1]
+        msg = email.message_from_bytes(raw)
+        payload, fname = find_excel_attachment(msg)
+        if payload is None:
+            continue
+        # Intentar leer fecha de generación del fichero
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
+                tf.write(payload)
+                tf_path = tf.name
+            fecha_gen = extraer_fecha_generacion(tf_path)
+            os.unlink(tf_path)
+        except Exception:
+            fecha_gen = date(2000, 1, 1)
+
+        if fecha_gen >= best_fecha:
+            best_fecha = fecha_gen
+            best_uid = uid
+            best_data = (payload, fname)
+
+    M.logout()
+    if best_data[0] is None:
+        raise RuntimeError("No se pudo descargar adjunto Excel del correo ERP")
+    return best_data[0], best_data[1], best_uid, best_fecha
 
 
-def _parse_generacion_datetime_from_xlsx_bytes(xlsx_bytes: bytes) -> datetime | None:
-    wb = openpyxl.load_workbook(openpyxl.utils.datetime_from_excel(0) if False else tempfile.TemporaryFile(), read_only=True)  # pragma: no cover
+# ─────────────────────────────────────────────────────────────────────────────
+#  PARSER Excel ERP
+# ─────────────────────────────────────────────────────────────────────────────
+def extraer_fecha_generacion(path: str) -> date:
+    """Lee la fecha de generación del ERP (fila 2: 'Fecha: DD/MM/YY Hora:...')"""
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
+    for i, row in enumerate(ws.iter_rows(max_row=5, values_only=True)):
+        for cell in row:
+            if cell and isinstance(cell, str) and "Fecha:" in cell:
+                m = re.search(r"Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{2,4})", cell)
+                if m:
+                    d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+                    if y < 100:
+                        y += 2000
+                    wb.close()
+                    return date(y, mo, d)
+    wb.close()
+    return date.today()
+
+
+def extraer_rango_fechas(ws):
+    """
+    Lee 'Fecha desde: DD/MM/YY   Fecha hasta: DD/MM/YY' del encabezado ERP.
+    Devuelve (fecha_desde, fecha_hasta) como objetos date.
+    """
+    for row in ws.iter_rows(max_row=6, values_only=True):
+        for cell in row:
+            if cell and isinstance(cell, str) and "Fecha desde:" in cell:
+                m = re.findall(r"(\d{1,2})/(\d{1,2})/(\d{2,4})", cell)
+                if len(m) >= 2:
+                    def parse(t):
+                        d, mo, y = int(t[0]), int(t[1]), int(t[2])
+                        if y < 100:
+                            y += 2000
+                        return date(y, mo, d)
+                    return parse(m[0]), parse(m[1])
+    return None, None
+
+
+def parsear_excel_erp(path: str):
+    """
+    Parsea el Excel ERP y devuelve:
+      {
+        "fecha_generacion": date,
+        "fecha_desde": date,
+        "fecha_hasta": date,
+        "por_canal": {"CENTRAL": float, "ALCARRAS": float, ...},
+        "por_vendedor": {"CENTRAL": [{"name":str,"real":float},...], ...},
+        "total": float,
+      }
+    """
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws_name = None
+    for sn in wb.sheetnames:
+        if sn.upper() in ("VENTAS", "DATOS", "DATOS-AUTOMATIZADA"):
+            ws_name = sn
+            break
+    ws = wb[ws_name] if ws_name else wb.active
+
+    fecha_gen = extraer_fecha_generacion(path)
+    fecha_desde, fecha_hasta = extraer_rango_fechas(ws)
+
+    # ── Sección 1: ventas por tienda/canal ────────────────────────────────────
+    por_canal_raw = {}   # canal_erp → total
+    por_vendedor_raw = {}  # (nombre, canal_erp) → total
+
+    section = None
+    for row in ws.iter_rows(values_only=True):
+        row = [c for c in row]
+        if not any(c for c in row):
+            continue
+        # Detectar cabeceras de sección
+        first = str(row[0] or "").strip()
+        if "pedidos de venta por canal" in first.lower():
+            section = "canal"
+            continue
+        if "ventas por vendedor" in first.lower():
+            section = "vendedor"
+            continue
+        if first in ("Tienda", "Vendedor"):
+            continue
+
+        if section == "canal":
+            # Filas de tienda: ('TZ', 'Tienda Zaragoza', 'CANAL', total)
+            # Filas totales: ('Total tienda XX', ...)
+            if len(row) >= 4 and row[2] and not str(row[0]).startswith("Total"):
+                canal = str(row[2]).strip().upper()
+                total = row[3] if isinstance(row[3], (int, float)) else 0
+                if total:
+                    por_canal_raw[canal] = por_canal_raw.get(canal, 0) + total
+
+        elif section == "vendedor":
+            # Filas: ('123', 'Nombre Vendedor', 'CANAL', total)
+            if len(row) >= 4 and row[1] and not str(row[0]).startswith("Total"):
+                nombre = str(row[1]).strip()
+                canal  = str(row[2] or "").strip().upper()
+                total  = row[3] if isinstance(row[3], (int, float)) else 0
+                if total and canal and not nombre.startswith("TOTAL"):
+                    key = (nombre, canal)
+                    por_vendedor_raw[key] = por_vendedor_raw.get(key, 0) + total
+
     wb.close()
 
+    # ── Mapear canal → centro ─────────────────────────────────────────────────
+    por_canal = {"CENTRAL":0.0,"ALCARRAS":0.0,"ALMOZARA":0.0,"CORONA":0.0}
+    for canal_erp, val in por_canal_raw.items():
+        centro = CANAL_MAP.get(canal_erp)
+        if centro:
+            por_canal[centro] += val
 
-def _excel_primary_sheet(wb, cfg: dict):
-    name = (cfg or {}).get("hoja_excel", "VENTAS")
-    if name in wb.sheetnames:
-        return wb[name]
-    return wb.active
-
-
-def _parse_generacion_datetime_from_sheet(ws) -> datetime | None:
-    """
-    Busca en las primeras filas texto del Excel tipo:
-      'Fecha: DD/MM/YY Hora: HH:MM'
-    y devuelve datetime (naive).
-    """
-    pat_full = re.compile(
-        r"Fecha[: \t]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})"
-        r"(?:\s+Hora:\s*(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?",
-        re.IGNORECASE,
-    )
-    for row in ws.iter_rows(min_row=1, max_row=20, values_only=True):
-        for cell in row:
-            if cell is None:
-                continue
-            if isinstance(cell, datetime):
-                return cell.replace(tzinfo=None)
-            s = str(cell).strip()
-            m = pat_full.search(s)
-            if m:
-                d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-                if y < 100:
-                    y += 2000
-                hh = int(m.group(4) or 0)
-                mm = int(m.group(5) or 0)
-                ss = int(m.group(6) or 0)
-                return datetime(y, mo, d, hh, mm, ss)
-    return None
-
-
-def _parse_fecha_hasta_date_from_sheet(ws) -> date | None:
-    pat = re.compile(r"Fecha\s+hasta[:\s]+(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})", re.IGNORECASE)
-    for row in ws.iter_rows(min_row=1, max_row=20, values_only=True):
-        for cell in row:
-            if cell is None:
-                continue
-            s = str(cell).strip()
-            m = pat.search(s)
-            if m:
-                d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-                if y < 100:
-                    y += 2000
-                return date(y, mo, d)
-    return None
-
-
-def _load_workbook_from_attachment(xlsx_path: Path, cfg: dict):
-    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-    ws = _excel_primary_sheet(wb, cfg)
-    return wb, ws
-
-
-def get_excel_generacion_datetime(msg, cfg: dict) -> datetime | None:
-    """Lee el Excel adjunto y devuelve la fecha/hora de generación (si aparece)."""
-    nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
-    for part in msg.walk():
-        ok, fn_norm = _is_matching_excel_part(part, nombre_cfg)
-        if not ok:
+    # ── Agrupar vendedores por centro ─────────────────────────────────────────
+    vend_agg = {}  # centro → nombre → total
+    for (nombre, canal_erp), val in por_vendedor_raw.items():
+        centro = CANAL_MAP.get(canal_erp)
+        if not centro:
             continue
-        try:
-            import io
-
-            data = part.get_payload(decode=True)
-            wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-            ws = _excel_primary_sheet(wb, cfg)
-            dt = _parse_generacion_datetime_from_sheet(ws)
-            wb.close()
-            return dt
-        except Exception as e:
-            log.warning(f"No se pudo leer fecha generación desde adjunto: {e}")
-    return None
-
-
-def _part_filename_normalized(part) -> str:
-    """Obtiene nombre de adjunto desde filename/name de forma tolerante."""
-    fn_raw = part.get_filename()
-    if fn_raw:
-        fn = _decode_header_value(fn_raw).strip()
-        if fn:
-            return fn.lower().replace(".xlmx", ".xlsx")
-
-    # fallback: algunos correos traen "name" en Content-Type
-    name_raw = part.get_param("name")
-    if name_raw:
-        name = _decode_header_value(name_raw).strip()
-        if name:
-            return name.lower().replace(".xlmx", ".xlsx")
-
-    # fallback: filename en Content-Disposition
-    disp_fn = part.get_param("filename", header="content-disposition")
-    if disp_fn:
-        dfn = _decode_header_value(disp_fn).strip()
-        if dfn:
-            return dfn.lower().replace(".xlmx", ".xlsx")
-
-    return ""
-
-
-def _normalize_name_token(s: str) -> str:
-    """
-    Normaliza nombres para comparar patrones de adjuntos:
-    - minúsculas
-    - quita extensión xlsx/xlsm/xls
-    - elimina todo lo no alfanumérico
-    """
-    if not s:
-        return ""
-    s = s.lower().strip().replace(".xlmx", ".xlsx")
-    s = re.sub(r"\.(xlsx|xlsm|xls)$", "", s)
-    s = re.sub(r"[^a-z0-9áéíóúüñ]+", "", s)
-    return s
-
-
-def _is_excel_mime(part) -> bool:
-    ctype = (part.get_content_type() or "").lower()
-    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-        return True
-    # algunos sistemas lo envían genérico con nombre de archivo
-    if ctype in ("application/octet-stream", "application/vnd.ms-excel"):
-        return True
-    return False
-
-
-def _is_attachment_like(part) -> bool:
-    disp = (part.get("Content-Disposition") or "").lower()
-    if "attachment" in disp:
-        return True
-    # algunos sistemas marcan inline aunque sea archivo
-    if "inline" in disp and (part.get_filename() or part.get_param("name")):
-        return True
-    return False
-
-
-def _is_matching_excel_part(part, nombre_cfg: str) -> tuple[bool, str]:
-    """Devuelve (es_adj_excel, filename_normalized)."""
-    fn_norm = _part_filename_normalized(part)
-    has_xlsx_name = fn_norm.endswith(".xlsx")
-    is_excel = has_xlsx_name or _is_excel_mime(part)
-    if not is_excel:
-        # fallback permisivo para correos MIME "raros":
-        # si no hay filtro de nombre, aceptar adjunto binario e intentar parseo posterior.
-        if not nombre_cfg and _is_attachment_like(part):
-            payload = part.get_payload(decode=True)
-            if payload and len(payload) > 200:
-                return True, fn_norm
-        return False, fn_norm
-    if nombre_cfg and fn_norm:
-        cfg_key = _normalize_name_token(nombre_cfg)
-        fn_key = _normalize_name_token(fn_norm)
-        if cfg_key and fn_key and (cfg_key not in fn_key and fn_key not in cfg_key):
-            return False, fn_norm
-    return True, fn_norm
-
-
-def _message_has_matching_xlsx(msg, cfg: dict) -> bool:
-    """True si el correo contiene al menos un adjunto .xlsx que cumple el filtro de nombre (si existe)."""
-    nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
-    for part in msg.walk():
-        ok, _ = _is_matching_excel_part(part, nombre_cfg)
-        if ok:
-            return True
-    return False
-
-
-def _message_parts_debug(msg) -> list[str]:
-    rows = []
-    for i, part in enumerate(msg.walk()):
-        ctype = (part.get_content_type() or "").lower()
-        fn = _part_filename_normalized(part)
-        disp = (part.get("Content-Disposition") or "").strip()
-        rows.append(f"part#{i} ctype={ctype} fn='{fn}' disp='{disp}'")
-    return rows
-
-
-def _email_header_datetime(msg) -> datetime | None:
-    """Fallback de fecha/hora del correo (cabecera Date) en UTC naive."""
-    raw = msg.get("Date")
-    if not raw:
-        return None
-    try:
-        dt = email.utils.parsedate_to_datetime(raw)
-        if dt is None:
-            return None
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt
-    except Exception:
-        return None
-
-
-def get_excel_attachment_path(conn, uid, cfg, tmp_dir: str) -> Path | None:
-    _, msg_data = conn.fetch(uid, "(RFC822)")
-    msg = email.message_from_bytes(msg_data[0][1])
-
-    nombre_cfg = (cfg.get("nombre_adjunto") or "").lower().replace(".xlmx", ".xlsx").strip()
-    for part in msg.walk():
-        ok, fn_norm = _is_matching_excel_part(part, nombre_cfg)
-        if not ok:
-            continue
-        if not fn_norm:
-            fn_norm = f"informe_uid_{uid.decode()}.xlsx"
-        out = Path(tmp_dir) / fn_norm
-        out.write_bytes(part.get_payload(decode=True))
-        return out
-    return None
-
-
-def find_latest_email_by_generation(conn, cfg: dict) -> bytes | None:
-    """
-    Selecciona el email cuyo Excel tenga fecha/hora de generación más reciente.
-    Si empate exacto: gana UID IMAP mayor.
-    """
-    carpeta = cfg.get("carpeta_busqueda", "INBOX")
-    conn.select(carpeta, readonly=True)
-
-    criterios = []
-    if cfg.get("asunto_contiene"):
-        criterios.append(f'SUBJECT "{cfg["asunto_contiene"]}"')
-    if cfg.get("remitente_contiene"):
-        criterios.append(f'FROM "{cfg["remitente_contiene"]}"')
-
-    horas = int(cfg.get("buscar_ultimas_horas", 96))
-    desde = (datetime.now(timezone.utc) - timedelta(hours=horas + 48)).strftime("%d-%b-%Y")
-    criterios.append(f"SINCE {desde}")
-    search_str = " ".join(criterios)
-
-    _, data = conn.search(None, search_str)
-    ids = data[0].split() if data and data[0] else []
-    if not ids:
-        return None
-
-    best_uid = None
-    best_dt = None
-    today_utc = datetime.now(timezone.utc).date()
-
-    for uid in ids:
-        _, full = conn.fetch(uid, "(RFC822)")
-        msg = email.message_from_bytes(full[0][1])
-
-        if not _message_has_matching_xlsx(msg, cfg):
-            log.info(f"UID {uid.decode()}: sin adjunto .xlsx válido, descartado")
-            for row in _message_parts_debug(msg):
-                log.info(f"UID {uid.decode()}: {row}")
-            continue
-
-        gen_dt = get_excel_generacion_datetime(msg, cfg)
-        used_fallback = False
-        if gen_dt is None:
-            gen_dt = _email_header_datetime(msg)
-            used_fallback = True
-            if gen_dt is None:
-                log.info(f"UID {uid.decode()}: sin fecha generación ni Date cabecera legible, descartado")
-                continue
-
-        if gen_dt.date() > today_utc:
-            log.info(f"UID {uid.decode()}: fecha futura {gen_dt.date()} > {today_utc}, descartado")
-            continue
-
-        # tie-break by UID numeric greater
-        uidn = int(uid.decode())
-        src = "email-date" if used_fallback else "excel-generation"
-        log.info(f"UID {uid.decode()}: candidato dt={gen_dt.isoformat()} src={src}")
-        if best_dt is None or gen_dt > best_dt or (gen_dt == best_dt and uidn > int(best_uid.decode())):
-            best_dt = gen_dt
-            best_uid = uid
-
-    if best_uid is not None:
-        log.info(f"UID seleccionado: {best_uid.decode()} (dt={best_dt})")
-    return best_uid
-
-
-def commercial_month_from_fecha_hasta(d: date) -> tuple[int, int]:
-    """Mes comercial etiquetado por mes civil de fin (día 25) con corte 26..25."""
-    if d.day <= 25:
-        return d.year, d.month
-    # day 26..31 => siguiente mes comercial
-    if d.month == 12:
-        return d.year + 1, 1
-    return d.year, d.month + 1
-
-
-def commercial_month_from_reference(
-    workbook_gen_dt: datetime | None,
-    workbook_fecha_hasta: date | None,
-) -> tuple[int, int]:
-    """
-    Mes comercial con prioridad:
-    1) fecha/hora de generación (día real disponible)
-    2) fallback fecha_hasta
-    """
-    if workbook_gen_dt is not None:
-        return commercial_month_from_fecha_hasta(workbook_gen_dt.date())
-    if workbook_fecha_hasta is not None:
-        return commercial_month_from_fecha_hasta(workbook_fecha_hasta)
-    today = datetime.now(ZoneInfo("Europe/Madrid")).date()
-    return commercial_month_from_fecha_hasta(today)
-
-
-def commercial_month_bounds(cm_year: int, cm_month: int) -> tuple[date, date]:
-    """Inicio/fin civil del mes comercial: 26 del mes civil anterior → 25 del mes siguiente."""
-    if cm_month == 1:
-        start = date(cm_year - 1, 12, 26)
-    else:
-        start = date(cm_year, cm_month - 1, 26)
-    end = date(cm_year, cm_month, 25)
-    return start, end
-
-
-MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-MONTHS_UP = {m.upper() for m in MONTHS_ES}
-CENTER_CANON = ["CENTRAL", "CORONA", "ALMOZARA", "ALCARRAS"]
-
-
-def compute_days_elapsed_and_total(locality_key: str, cm_start: date, cm_end: date, last_load_date: date) -> dict:
-    """
-    Laborables: Lunes a Sábado excluyendo:
-      - festivos nacionales (Spain workalendar)
-      - festivos locales (Zaragoza / Lleida) desde config opcional
-    """
-    cal = Spain()
-    years = list({cm_start.year, cm_end.year, last_load_date.year})
-    national_h = set()
-    for y in years:
-        for d, _ in cal.holidays(y):
-            national_h.add(d)
-
-    # Festivos LOCALES de la ciudad (requisito 8)
-    # Zaragoza (ciudad): San Valero (29/01) y Cincomarzada (05/03)
-    # Lleida (ciudad): San Anastasio (12/05) y Sant Miquel (29/09)
-    # Nota: aquí aplicamos fechas locales para los años 2025-2026 requeridos.
-    # Si más adelante necesitáis otros años, extendemos el mapa.
-    local_h = set()
-    if locality_key.lower() == "zaragoza":
-        for y in years:
-            local_h.add(date(y, 1, 29))
-            local_h.add(date(y, 3, 5))
-    elif locality_key.lower() == "lleida":
-        for y in years:
-            local_h.add(date(y, 5, 12))
-            local_h.add(date(y, 9, 29))
-
-    def is_workday(d: date) -> bool:
-        if d.weekday() > 5:  # 0=Mon .. 6=Sun
-            return False
-        if d in national_h:
-            return False
-        if d in local_h:
-            return False
-        return True
-
-    total_days = 0
-    d = cm_start
-    while d <= cm_end:
-        if is_workday(d):
-            total_days += 1
-        d = d + timedelta(days=1)
-
-    elapsed_days = 0
-    ref = min(last_load_date, cm_end)
-    if ref < cm_start:
-        elapsed_days = 0
-    else:
-        d = cm_start
-        while d <= ref:
-            if is_workday(d):
-                elapsed_days += 1
-            d = d + timedelta(days=1)
-
-    return {"daysElapsed": elapsed_days, "daysTotal": total_days}
-
-
-def parse_demo_aggregated_from_evolucion(wb, cm_year: int, cm_month: int, last_load_date: date) -> dict:
-    """
-    Parser heurístico para el formato de ejemplo Evolucion Zaragoza.xlsx:
-    - TOTAL{suffix} para Europa total
-    - {ZARAGOZA|LERIDA|ALMOZARA|CORONA}{suffix} para centros
-    - y (opcional) HISTORICO ventas para historyAnnual
-    """
-    suffix = str(cm_year)[-2:]
-    cm_month_idx = cm_month - 1
-    month_name = MONTHS_ES[cm_month_idx]
-    # En algunos Excel el bloque mensual viene etiquetado por mes civil "de origen"
-    # (p.ej., datos 26-mar..25-abr bajo fila MARZO). Fallback al mes anterior.
-    month_name_prev = MONTHS_ES[(cm_month_idx - 1) % 12]
-
-    # days for projection
-    cm_start, cm_end = commercial_month_bounds(cm_year, cm_month)
-
-    # locality mapping for days
-    loc_tot = "zaragoza"
-
-    days = compute_days_elapsed_and_total(loc_tot, cm_start, cm_end, last_load_date)
-
-    def find_month_row(ws, labels: list[str]) -> int | None:
-        labels_up = {str(x).strip().upper() for x in labels if x}
-        for i, row in enumerate(ws.iter_rows(min_row=1, max_row=120, values_only=True), start=1):
-            # first 2 columns contain month label in this example
-            for j in [0,1]:
-                v = row[j] if j < len(row) else None
-                if v is None:
-                    continue
-                if str(v).strip().upper() in labels_up:
-                    return i
-        return None
-
-    def get_vals_from_row(ws, row_idx: int, offsets: tuple[int,int,int]):
-        row = list(ws.iter_rows(min_row=row_idx, max_row=row_idx, values_only=True))[0]
-        # offsets are 0-based indices
-        b = row[offsets[0]] if len(row) > offsets[0] else None
-        cur = row[offsets[1]] if len(row) > offsets[1] else None
-        prev = row[offsets[2]] if len(row) > offsets[2] else None
-        def as_float(x):
-            if x is None:
-                return None
-            if isinstance(x,(int,float)):
-                return float(x)
-            try:
-                return float(str(x).replace('.','').replace(',','.'))
-            except:
-                return None
-        return as_float(b), as_float(cur), as_float(prev)
-
-    def proj(real, elapsed, total):
-        if real is None or elapsed is None or elapsed <= 0 or total is None:
-            return None
-        return (real / elapsed) * total
-
-    def kpis(real, budget, elapsed, total, yoy_prev):
-        p = proj(real, elapsed, total)
-        pct = (p / budget * 100.0) if (p is not None and budget and budget != 0) else None
-        pace = (real / elapsed) if (real is not None and elapsed and elapsed > 0) else None
-        yoy_real_pct = ((real - yoy_prev) / yoy_prev * 100.0) if (yoy_prev is not None and yoy_prev != 0 and real is not None) else None
-        # yoy proy: build proy for prev with same elapsed/total
-        proy_prev = proj(yoy_prev, elapsed, total) if (yoy_prev is not None) else None
-        yoy_proy_pct = ((p - proy_prev) / proy_prev * 100.0) if (proy_prev and proy_prev != 0 and p is not None) else None
-        var_real = (real - budget) if (real is not None and budget is not None) else None
-        var_proy = (p - budget) if (p is not None and budget is not None) else None
-        return {
-            "real": real,
-            "budget": budget,
-            "projection": p,
-            "pctProyBudget": pct,
-            "pace": pace,
-            "yoyRealPct": yoy_real_pct,
-            "yoyProyPct": yoy_proy_pct,
-            "varRealVsBudget": var_real,
-            "varProyVsBudget": var_proy,
-            "daysElapsed": elapsed,
-            "daysTotal": total,
-        }
-
-    cm_key = f"{cm_year}-{cm_month:02d}"
-
-    # TOTAL Europe
-    total_sheet = f"TOTAL{suffix}"
-    totals = {}
-    if total_sheet in wb.sheetnames:
-        ws = wb[total_sheet]
-        # Serie mensual del año comercial (enero..diciembre) para selector y gráficos.
-        for m in range(1, 13):
-            m_name = MONTHS_ES[m - 1]
-            row_idx_m = find_month_row(ws, [m_name])
-            if not row_idx_m:
-                continue
-            budget, real_cur, real_prev = get_vals_from_row(ws, row_idx_m, offsets=(2,3,4))
-            mk = f"{cm_year}-{m:02d}"
-            dstart, dend = commercial_month_bounds(cm_year, m)
-            mdays = compute_days_elapsed_and_total("zaragoza", dstart, dend, last_load_date)
-            totals[mk] = kpis(real_cur, budget, mdays["daysElapsed"], mdays["daysTotal"], real_prev)
-
-        # fallback de seguridad para CM actual si no entró por serie
-        if cm_key not in totals:
-            row_idx = find_month_row(ws, [month_name, month_name_prev])
-            if row_idx:
-                budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=(2,3,4))
-                totals[cm_key] = kpis(real_cur, budget, days["daysElapsed"], days["daysTotal"], real_prev)
-    # Centers
-    centers = {}
-    center_sheets = [s for s in wb.sheetnames if s.endswith(suffix) and any(k in s.upper() for k in ["ZARAGOZA","LERIDA","ALMOZARA","CORONA","CENTRAL"])]
-    for sh in center_sheets:
-        ws = wb[sh]
-        name_up = sh.upper()
-        if name_up.startswith("ZARAGOZA") or name_up.startswith("CENTRAL"):
-            center_id = "CENTRAL"
-            offsets = (2,3,4)
-            locality = "zaragoza"
-        elif name_up.startswith("LERIDA"):
-            center_id = "ALCARRAS"
-            offsets = (3,4,5)
-            locality = "lleida"
-        elif name_up.startswith("ALMOZARA"):
-            center_id = "ALMOZARA"
-            offsets = (2,3,4)
-            locality = "zaragoza"
-        elif name_up.startswith("CORONA"):
-            center_id = "CORONA"
-            offsets = (2,3,4)
-            locality = "zaragoza"
-        else:
-            center_id = sh
-            offsets = (2,3,4)
-            locality = "zaragoza"
-
-        for m in range(1, 13):
-            m_name = MONTHS_ES[m - 1]
-            row_idx = find_month_row(ws, [m_name])
-            if not row_idx:
-                continue
-            dstart, dend = commercial_month_bounds(cm_year, m)
-            local_days = compute_days_elapsed_and_total(locality, dstart, dend, last_load_date)
-            budget, real_cur, real_prev = get_vals_from_row(ws, row_idx, offsets=offsets)
-            mk = f"{cm_year}-{m:02d}"
-            centers.setdefault(mk, {})[center_id] = kpis(real_cur, budget, local_days["daysElapsed"], local_days["daysTotal"], real_prev)
-
-    # Rellena centros canónicos faltantes para que siempre aparezcan en frontend.
-    for mk in list(totals.keys()):
-        dstart, dend = commercial_month_bounds(int(mk.split("-")[0]), int(mk.split("-")[1]))
-        mdays = compute_days_elapsed_and_total("zaragoza", dstart, dend, last_load_date)
-        for cid in CENTER_CANON:
-            centers.setdefault(mk, {}).setdefault(cid, {
-                "real": None,
-                "budget": None,
-                "projection": None,
-                "pctProyBudget": None,
-                "pace": None,
-                "yoyRealPct": None,
-                "yoyProyPct": None,
-                "varRealVsBudget": None,
-                "varProyVsBudget": None,
-                "daysElapsed": mdays["daysElapsed"],
-                "daysTotal": mdays["daysTotal"],
-            })
-
-    # Vendors (heurístico en hoja VENTAS): col B = nombre, col D = ventas.
-    vendorsByMonth = {}
-    ws_v = _excel_primary_sheet(wb, {"hoja_excel": "VENTAS"})
-    current_center = None
-    vendor_acc = {}
-
-    def _to_num(v):
-        if v is None:
-            return None
-        if isinstance(v, (int, float)):
-            return float(v)
-        try:
-            return float(str(v).replace(".", "").replace(",", ".").strip())
-        except Exception:
-            return None
-
-    def _norm_txt(v):
-        return re.sub(r"\s+", " ", str(v or "").strip()).upper()
-
-    def _detect_center(name_up: str) -> str | None:
-        if "ALCARR" in name_up or "LERIDA" in name_up:
-            return "ALCARRAS"
-        if "ALMOZARA" in name_up:
-            return "ALMOZARA"
-        if "CORONA" in name_up:
-            return "CORONA"
-        if "CENTRAL" in name_up or "ZARAGOZA" in name_up:
-            return "CENTRAL"
-        return None
-
-    for r in range(1, (ws_v.max_row or 0) + 1):
-        raw_name = ws_v.cell(row=r, column=2).value
-        name = str(raw_name).strip() if raw_name is not None else ""
-        if not name:
-            continue
-        name_up = _norm_txt(name)
-        maybe_center = _detect_center(name_up)
-        if maybe_center:
-            current_center = maybe_center
-            continue
-
-        sales = _to_num(ws_v.cell(row=r, column=4).value)
-        if sales is None or sales <= 0:
-            continue
-        if current_center is None:
-            continue
-        if name_up in MONTHS_UP:
-            continue
-
-        # Compartidos: mostrar solo si tienen cifra (ya garantizado arriba).
-        key = (current_center, name.strip())
-        vendor_acc[key] = vendor_acc.get(key, 0.0) + float(sales)
-
-    vendorsByMonth[cm_key] = {}
-    for (center_id, vendor_name), real in vendor_acc.items():
-        cbase = centers.get(cm_key, {}).get(center_id, {})
-        de = cbase.get("daysElapsed") or days["daysElapsed"]
-        dt = cbase.get("daysTotal") or days["daysTotal"]
-        projection = (real / de * dt) if de else None
-        vendor_id = f"{center_id}::{vendor_name}"
-        vendorsByMonth[cm_key][vendor_id] = {
-            "centerId": center_id,
-            "vendorName": vendor_name,
-            "real": real,
-            "projection": projection,
-            "yoyRealPct": None,
-            "budget": None,
-        }
-
-    # History annual (optional) — desde 2021 en adelante.
-    historyAnnual = {}
-    historyByCenterAnnual = {}
-    if "Historico ventas" in wb.sheetnames:
-        hs = wb["Historico ventas"]
-
-        def _safe_float(v):
-            if v is None:
-                return None
-            if isinstance(v, (int, float)):
-                return float(v)
-            try:
-                return float(str(v).strip().replace(",", "."))
-            except Exception:
-                return None
-
-        # Parse blocks (ZARAGOZA, ALCARRAS, ALMOZARA, TOTAL, CORONA...)
-        # Pattern expected:
-        # row R: center name + year headers in cols B.. (2008..2026)
-        # rows R+1..R+12: ENERO..DICIEMBRE values by year
-        candidate_centers = {"ZARAGOZA", "ALCARRAS", "ALCARRÁS", "ALMOZARA", "TOTAL", "CORONA"}
-        for r in range(1, hs.max_row + 1):
-            c0 = hs.cell(row=r, column=1).value
-            if c0 is None:
-                continue
-            center_raw = str(c0).strip().upper()
-            if center_raw not in candidate_centers:
-                continue
-
-            # Validate that next row looks like a month row
-            month_probe = hs.cell(row=r + 1, column=1).value
-            if month_probe is None or str(month_probe).strip().upper() not in MONTHS_UP:
-                continue
-
-            center_key = center_raw.replace("Á", "A")
-            if center_key == "ALCARRAS":
-                center_key = "ALCARRAS"
-
-            # Year columns on this center header row
-            year_cols = []
-            for c in range(2, hs.max_column + 1):
-                yv = _safe_float(hs.cell(row=r, column=c).value)
-                if yv is None:
-                    continue
-                yi = int(yv)
-                if 1900 <= yi <= 2100:
-                    year_cols.append((yi, c))
-
-            if not year_cols:
-                continue
-
-            # Sum ENERO..DICIEMBRE (12 rows)
-            annual_map = {}
-            for yi, col in year_cols:
-                s = 0.0
-                for rr in range(r + 1, r + 13):
-                    mv = hs.cell(row=rr, column=1).value
-                    if mv is None:
-                        continue
-                    if str(mv).strip().upper() not in MONTHS_UP:
-                        continue
-                    vv = _safe_float(hs.cell(row=rr, column=col).value)
-                    if vv is None:
-                        continue
-                    s += vv
-                # En esta hoja está en miles de euros => convertir a euros
-                annual_map[yi] = s * 1000.0
-
-            # Keep only 2021+ as requested
-            annual_map = {y: v for y, v in annual_map.items() if y >= 2021}
-            if not annual_map:
-                continue
-
-            # Build with YoY
-            years_sorted = sorted(annual_map.keys())
-            out = {}
-            prev_val = None
-            for yi in years_sorted:
-                val = annual_map[yi]
-                yoy = None
-                if prev_val is not None and prev_val != 0:
-                    yoy = (val - prev_val) / prev_val * 100.0
-                out[str(yi)] = {"total": val, "yoyPct": yoy}
-                prev_val = val
-
-            historyByCenterAnnual[center_key] = out
-
-        # Locate TOTAL row index where column A equals 'TOTAL'
-        total_row_idx = None
-        for i in range(1, hs.max_row + 1):
-            v = hs.cell(row=i, column=1).value
-            if v is None:
-                continue
-            if str(v).strip().upper() == "TOTAL":
-                total_row_idx = i
-                break
-
-        if total_row_idx:
-            # Columns B.. contain year labels (2008..)
-            years = []
-            year_cols = []
-            for c in range(2, hs.max_column + 1):
-                y = hs.cell(row=total_row_idx, column=c).value
-                if isinstance(y, (int, float)):
-                    # keep integer year only
-                    yi = int(y)
-                    if 1900 <= yi <= 2100:
-                        years.append(yi)
-                        year_cols.append(c)
-
-            # Month rows are expected to start at TOTAL+1 (ENERO) and continue 12 rows (hasta DICIEMBRE)
-            # This matches the structure of the example workbook.
-            month_rows = [total_row_idx + i for i in range(1, 13)]
-            annual = []
-            for yi, col in zip(years, year_cols):
-                s = 0.0
-                for mr in month_rows:
-                    v = hs.cell(row=mr, column=col).value
-                    if v is None:
-                        continue
-                    if isinstance(v, (int, float)):
-                        s += float(v)
-                    else:
-                        try:
-                            s += float(str(v).strip())
-                        except:
-                            pass
-                # In this workbook the unit is "miles" → convert to euros
-                annual.append((yi, s * 1000.0))
-
-            annual_sorted = sorted(annual, key=lambda x: x[0])
-            for i, (yi, total_eur) in enumerate(annual_sorted):
-                if yi < 2021:
-                    continue
-                if i == 0:
-                    yoy = None
-                else:
-                    prev = annual_sorted[i - 1][1]
-                    yoy = ((total_eur - prev) / prev * 100.0) if prev else None
-                historyAnnual[str(yi)] = {"total": total_eur, "yoyPct": yoy}
-
-    month_labels = {}
-    for mk in totals.keys():
-        # mk format YYYY-MM
-        try:
-            _y = int(mk.split("-")[0])
-            _m = int(mk.split("-")[1])
-            month_labels[mk] = f"{MONTHS_ES[_m-1].upper()[:3]}-{str(_y)[-2:]}"
-        except Exception:
-            month_labels[mk] = mk
+        vend_agg.setdefault(centro, {})
+        vend_agg[centro][nombre] = vend_agg[centro].get(nombre, 0) + val
+
+    por_vendedor = {}
+    for centro, vendedores in vend_agg.items():
+        por_vendedor[centro] = [
+            {"name": n, "real": round(v, 2)}
+            for n, v in sorted(vendedores.items(), key=lambda x: -x[1])
+            if v > 0
+        ]
 
     return {
-        "meta": {"lastLoadDate": last_load_date.isoformat(), "lastRunTs": datetime.now(timezone.utc).isoformat()},
-        "ui": {"monthLabels": month_labels},
-        "totalsByMonth": totals,
-        "centersByMonth": centers,
-        "vendorsByMonth": vendorsByMonth,
-        "historyAnnual": historyAnnual,
-        "historyByCenterAnnual": historyByCenterAnnual,
-      }
+        "fecha_generacion": fecha_gen,
+        "fecha_desde": fecha_desde,
+        "fecha_hasta": fecha_hasta,
+        "por_canal": por_canal,
+        "por_vendedor": por_vendedor,
+        "total": sum(por_canal.values()),
+    }
 
 
-def find_generation_datetime(workbook_path: Path, cfg: dict) -> datetime | None:
-    wb = openpyxl.load_workbook(workbook_path, read_only=True, data_only=True)
-    ws = _excel_primary_sheet(wb, cfg)
-    dt = _parse_generacion_datetime_from_sheet(ws)
-    wb.close()
-    return dt
+# ─────────────────────────────────────────────────────────────────────────────
+#  GOOGLE SHEETS – Append histórico (opcional)
+# ─────────────────────────────────────────────────────────────────────────────
+def get_sheets_service():
+    sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if not sa_json or not HAS_GOOGLE:
+        return None
+    import json as _json
+    info = _json.loads(sa_json)
+    creds = Credentials.from_service_account_info(
+        info,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    return build("sheets", "v4", credentials=creds)
 
 
-def find_fecha_hasta(workbook_path: Path, cfg: dict) -> date | None:
-    wb = openpyxl.load_workbook(workbook_path, read_only=True, data_only=True)
-    ws = _excel_primary_sheet(wb, cfg)
-    d = _parse_fecha_hasta_date_from_sheet(ws)
-    wb.close()
-    return d
-
-
-def compute_last_load_date_local(workbook_gen_dt: datetime | None, workbook_fecha_hasta: date | None, cm_year: int, cm_month: int) -> date:
-    """
-    lastLoadDate (día completo disponible) = fecha de generación si existe; fallback fecha_hasta.
-    Se capea a [inicio mes comercial, min(hoy, fin mes comercial)].
-    """
-    today = datetime.now(ZoneInfo("Europe/Madrid")).date()
-    cm_start, cm_end = commercial_month_bounds(cm_year, cm_month)
-    chosen = None
-    if workbook_gen_dt:
-        chosen = workbook_gen_dt.date()
-    elif workbook_fecha_hasta:
-        chosen = workbook_fecha_hasta
-    else:
-        chosen = today
-
-    if chosen > today:
-        chosen = today
-    if chosen < cm_start:
-        chosen = cm_start
-    if chosen > cm_end:
-        chosen = cm_end
-    return chosen
-
-
-def update_json_payload(payload: dict):
-    existing = {}
-    if JSON_OUT.exists():
-        try:
-            existing = json.loads(JSON_OUT.read_text(encoding="utf-8"))
-        except Exception:
-            existing = {}
-
-    # shallow merge: keep existing for months not updated
-    existing.setdefault("totalsByMonth", {})
-    existing.setdefault("centersByMonth", {})
-    existing.setdefault("vendorsByMonth", {})
-    existing.setdefault("historyAnnual", {})
-    existing.setdefault("historyByCenterAnnual", {})
-    existing.setdefault("ui", {})
-    existing["ui"].setdefault("monthLabels", {})
-    existing.setdefault("meta", {})
-
-    existing["meta"].update(payload.get("meta", {}))
-    for mk, t in (payload.get("totalsByMonth") or {}).items():
-        existing["totalsByMonth"][mk] = t
-    for mk, cdict in (payload.get("centersByMonth") or {}).items():
-        existing["centersByMonth"].setdefault(mk, {})
-        existing["centersByMonth"][mk].update(cdict)
-    for mk, vdict in (payload.get("vendorsByMonth") or {}).items():
-        existing["vendorsByMonth"].setdefault(mk, {})
-        existing["vendorsByMonth"][mk].update(vdict)
-
-    # monthLabels: fuente de verdad = totalsByMonth (evita labels huérfanos/desalineados)
-    rebuilt_labels = {}
-    for mk in sorted(existing["totalsByMonth"].keys()):
-        try:
-            _y = int(mk.split("-")[0])
-            _m = int(mk.split("-")[1])
-            rebuilt_labels[mk] = f"{MONTHS_ES[_m-1].upper()[:3]}-{str(_y)[-2:]}"
-        except Exception:
-            rebuilt_labels[mk] = mk
-    existing["ui"]["monthLabels"] = rebuilt_labels
-    # Histórico: reemplazo completo para evitar mezclar datos "demo" antiguos.
-    if "historyAnnual" in payload:
-        existing["historyAnnual"] = payload.get("historyAnnual") or {}
-    if "historyByCenterAnnual" in payload:
-        existing["historyByCenterAnnual"] = payload.get("historyByCenterAnnual") or {}
-
-    JSON_OUT.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def drive_append_workbook_to_tab(cfg: dict, xlsx_path: Path, report_key: str, fecha_gen: datetime | None, fecha_hasta: date | None):
-    if not cfg.get("google_service_account_json"):
+def append_to_sheets(erp_data: dict):
+    """Guarda fila en Google Sheets (idempotente por report_key)."""
+    sheet_id = os.environ.get("DRIVE_SPREADSHEET_ID", "")
+    if not sheet_id:
         return
-    if not cfg.get("drive_spreadsheet_id"):
-        log.warning("Falta DRIVE_SPREADSHEET_ID, se salta copia a Drive.")
+    svc = get_sheets_service()
+    if not svc:
         return
-
-    # auth
+    tab = "Datos"
+    fd = erp_data.get("fecha_desde")
+    report_key = f"{fd}_{erp_data['fecha_generacion']}" if fd else str(erp_data["fecha_generacion"])
+    # Leer claves existentes para idempotencia
     try:
-        sa_info = json.loads(cfg["google_service_account_json"])
-        creds = google.oauth2.service_account.Credentials.from_service_account_info(
-            sa_info,
-            scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"],
-        )
-    except Exception as e:
-        log.error(f"No se pudo cargar GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
-        return
-
-    service = build("sheets", "v4", credentials=creds)
-    ss_id = cfg["drive_spreadsheet_id"]
-    tab = cfg["drive_tab"]
-
-    # Idempotence: check if report_key exists in column A
-    try:
-        read = service.spreadsheets().values().get(
-            spreadsheetId=ss_id,
-            range=f"{tab}!A:A",
-            majorDimension="COLUMNS",
+        result = svc.spreadsheets().values().get(
+            spreadsheetId=sheet_id, range=f"{tab}!A:A"
         ).execute()
-        existing_colA = read.get("values", [[]])[0]
-        if report_key in existing_colA:
-            log.info("Drive: report_key ya existe, no se duplica.")
+        existing_keys = [r[0] for r in result.get("values", []) if r]
+        if report_key in existing_keys:
+            print(f"  Sheets: ya existe {report_key}, skip")
             return
-    except HttpError as e:
-        log.warning(f"Drive: no se pudo leer idempotencia (se intentará append). {e}")
-
-    # Extract sheet values (primary sheet)
-    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-    ws = _excel_primary_sheet(wb, cfg)
-
-    # Convert to list of rows up to used range
-    max_r = ws.max_row or 0
-    max_c = ws.max_column or 0
-    values = []
-    for r in range(1, max_r + 1):
-        row = []
-        for c in range(1, max_c + 1):
-            row.append(ws.cell(row=r, column=c).value)
-        values.append(row)
-        if r > 5000:
-            break
-    wb.close()
-
-    # Prepend a block header
-    header = [
+    except Exception as e:
+        print(f"  Sheets warning: {e}")
+    canal = erp_data["por_canal"]
+    row = [
         report_key,
-        fecha_gen.isoformat() if fecha_gen else "",
-        fecha_hasta.isoformat() if fecha_hasta else "",
-    ] + [""] * max_c
-    payload = [header]
-    for row in values:
-        payload.append([""] + row)  # shift 1 col to keep report_key column aligned
-
-    # Append
+        str(erp_data["fecha_generacion"]),
+        str(fd or ""),
+        str(erp_data.get("fecha_hasta") or ""),
+        round(canal.get("CENTRAL", 0), 2),
+        round(canal.get("ALCARRAS", 0), 2),
+        round(canal.get("ALMOZARA", 0), 2),
+        round(canal.get("CORONA", 0), 2),
+        round(erp_data["total"], 2),
+    ]
     try:
-        service.spreadsheets().values().append(
-            spreadsheetId=ss_id,
-            range=f"{tab}!A1",
-            valueInputOption="RAW",
-            insertDataOption="INSERT_ROWS",
-            body={"values": payload},
+        svc.spreadsheets().values().append(
+            spreadsheetId=sheet_id,
+            range=f"{tab}!A:I",
+            valueInputOption="USER_ENTERED",
+            body={"values": [row]},
         ).execute()
-        log.info("Drive: append OK.")
+        print(f"  Sheets: append OK → {report_key}")
     except Exception as e:
-        log.error(f"Drive: append falló: {e}")
+        print(f"  Sheets error: {e}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  GENERACIÓN data.json
+# ─────────────────────────────────────────────────────────────────────────────
+def build_rolling(hist_total: dict) -> list:
+    """Calcula rolling 12m mensual desde todos los datos históricos disponibles."""
+    all_months = []
+    for year in sorted(hist_total.keys()):
+        months = hist_total[year]
+        for mi, val in enumerate(months):
+            if val is not None:
+                all_months.append((year, mi + 1, val))
+
+    rolling = []
+    for i in range(11, len(all_months)):
+        window = all_months[i - 11 : i + 1]
+        val = sum(x[2] for x in window)
+        y, m, _ = all_months[i]
+        rolling.append({"label": f"{y}-{m:02d}", "value": round(val)})
+    return rolling
+
+
+def build_hist_total(cur_year: int, cur_month: int, centro_by_year: dict) -> dict:
+    """Construye histórico total fusionando estáticos + mes actual."""
+    static_totals = {
+        2023: [202945,297824,216672,242818,274082,238758,251016,217911,290767,294400,329986,202116],
+        2024: [265515,350421,286508,252700,315800,246211,285907,245262,299321,305765,391524,256428],
+        2025: [357929,392168,339492,322682,346288,278616,326300,280499,411993,385315,323646,248123],
+    }
+    # Año 2021 y 2022 estimados
+    static_totals[2021] = [201000,117000,251000,250000,243000,287000,254000,266000,276000,304000,285000,205000]
+    static_totals[2022] = [267021,225340,239287,276818,245032,240474,209842,292090,254135,283067,285358,205412]
+
+    result = {}
+    for year, monthly in sorted(static_totals.items()):
+        result[year] = list(monthly)
+
+    # Actualizar/añadir el año actual con datos frescos
+    if cur_year not in result:
+        result[cur_year] = [None] * 12
+    # Rellenar meses completados del año actual desde MONTHLY_BY_CENTER
+    for m_idx in range(12):
+        m = m_idx + 1
+        completed_key = str(cur_year)
+        mc = MONTHLY_BY_CENTER.get(completed_key, {}).get(m)
+        if mc:
+            result[cur_year][m_idx] = round(sum(mc.values()))
+
+    # Mes comercial actual en curso (parcial)
+    cur_data = centro_by_year.get(cur_year, {}).get(cur_month)
+    if cur_data:
+        result[cur_year][cur_month - 1] = round(sum(cur_data.values()))
+
+    return {str(k): v for k, v in sorted(result.items())}
+
+
+def build_monthly_series(cur_year: int, cur_month: int, real_cur: dict,
+                          proj_cur: float) -> dict:
+    """Construye series mensuales para el frontend."""
+    series = {}
+
+    # Año actual
+    months_2026 = []
+    completed = MONTHLY_BY_CENTER.get(str(cur_year), {})
+    budget_year = BUDGET_26 if cur_year == 2026 else {}
+
+    for m in range(1, 13):
+        bc = budget_year.get(m, {})
+        if m < cur_month and m in completed:
+            rc = completed[m]
+            t_real = round(sum(rc.values()))
+            months_2026.append({
+                "month": m,
+                "real": t_real,
+                "budget": bc.get("TOTAL", 0),
+                "projection": t_real,
+                "byCenter": {c: {"real": round(v), "budget": bc.get(c, 0)} for c, v in rc.items()},
+            })
+        elif m == cur_month:
+            months_2026.append({
+                "month": m,
+                "real": round(real_cur.get("TOTAL", 0), 2),
+                "budget": bc.get("TOTAL", 0),
+                "projection": round(proj_cur, 2),
+                "byCenter": {c: {"real": round(real_cur.get(c, 0), 2), "budget": bc.get(c, 0)}
+                             for c in ["CENTRAL","ALCARRAS","ALMOZARA","CORONA"]},
+            })
+        else:
+            months_2026.append({
+                "month": m,
+                "real": None,
+                "budget": bc.get("TOTAL", 0),
+                "projection": None,
+            })
+    series[str(cur_year)] = months_2026
+
+    # Año anterior
+    prev_year = cur_year - 1
+    prev_monthly = MONTHLY_BY_CENTER.get(str(prev_year), {})
+    months_prev = []
+    for m in range(1, 13):
+        rc = prev_monthly.get(m, {})
+        t = round(sum(rc.values())) if rc else TOTAL_MONTHLY.get(prev_year, [None]*12)[m-1]
+        months_prev.append({"month": m, "real": t, "budget": 0, "projection": t})
+    series[str(prev_year)] = months_prev
+
+    # 2024, 2023
+    for yr in [2024, 2023]:
+        totals = TOTAL_MONTHLY.get(yr, [])
+        series[str(yr)] = [{"month": m+1, "real": v, "budget": 0, "projection": v}
+                           for m, v in enumerate(totals)]
+    return series
+
+
+def generar_data_json(erp_data: dict, output_path: str = "data.json"):
+    """Construye y escribe data.json completo."""
+
+    fg    = erp_data["fecha_generacion"]
+    fd    = erp_data.get("fecha_desde") or date.today()
+    fh    = erp_data.get("fecha_hasta") or date.today()
+    real  = erp_data["por_canal"]
+    vend  = erp_data["por_vendedor"]
+    total = erp_data["total"]
+
+    # Determinar mes comercial
+    com_year, com_month = get_commercial_month(fd)
+
+    # Días laborables
+    inicio_com, fin_com = get_commercial_period(com_year, com_month)
+    festivos = FESTIVOS_LLEIDA if False else FESTIVOS_ZARAGOZA  # Zaragoza por defecto
+    days_total   = contar_dias_laborables(inicio_com, fin_com, festivos)
+    days_elapsed = contar_dias_laborables(inicio_com, fg, festivos)
+    days_elapsed = min(days_elapsed, days_total)
+
+    # KPI global
+    pace       = total / days_elapsed if days_elapsed > 0 else 0
+    projection = pace * days_total
+    budget_cur = BUDGET_26.get(com_month, {}).get("TOTAL", 0)
+    var_proy   = round(projection - budget_cur, 2)
+
+    # KPI por centro
+    def center_kpi(c):
+        r = real.get(c, 0)
+        b = BUDGET_26.get(com_month, {}).get(c, 0)
+        p = (r / days_elapsed * days_total) if days_elapsed > 0 else 0
+        return {
+            "real": round(r, 2),
+            "budget": b,
+            "projection": round(p, 2),
+            "pace": round(r / days_elapsed, 2) if days_elapsed > 0 else 0,
+            "varProyVsBudget": round(p - b, 2),
+            "cumplPct": round(p / b * 100, 1) if b else 0,
+            "daysElapsed": days_elapsed,
+            "daysTotal": days_total,
+        }
+
+    # Histórico total (para rolling)
+    hist_total_raw = {}
+    for year, months in MONTHLY_BY_CENTER.items():
+        y = int(year)
+        hist_total_raw[y] = [None] * 12
+        for m, rc in months.items():
+            hist_total_raw[y][m - 1] = round(sum(rc.values()))
+    # Añadir años más antiguos de totales estáticos
+    for yr, monthly in TOTAL_MONTHLY.items():
+        if yr not in hist_total_raw:
+            hist_total_raw[yr] = monthly
+    # Mes actual en curso
+    hist_total_raw.setdefault(com_year, [None] * 12)
+    hist_total_raw[com_year][com_month - 1] = round(total)
+    # Convertir a str keys para build functions
+    hist_total_str = {str(k): v for k, v in hist_total_raw.items()}
+
+    rolling = build_rolling(hist_total_raw)
+
+    # Histórico por centro
+    def extend_hist_center(static: dict, cur_center: str) -> dict:
+        h = {k: list(v) for k, v in static.items()}
+        # Actualizar meses 2026 completados
+        for m_str, rcs in MONTHLY_BY_CENTER.get(str(com_year), {}).items():
+            mi = int(m_str) - 1
+            yr = str(com_year)
+            h.setdefault(yr, [None] * 12)
+            h[yr][mi] = round(rcs.get(cur_center, 0))
+        # Mes actual parcial
+        yr = str(com_year)
+        h.setdefault(yr, [None] * 12)
+        h[yr][com_month - 1] = round(real.get(cur_center, 0))
+        return {k: v for k, v in sorted(h.items())}
+
+    hist_central  = extend_hist_center(HIST_CENTRAL, "CENTRAL")
+    hist_alcarras = extend_hist_center(HIST_ALCARRAS, "ALCARRAS")
+    hist_almozara = extend_hist_center(HIST_ALMOZARA, "ALMOZARA")
+    hist_corona   = extend_hist_center(HIST_CORONA, "CORONA")
+
+    # Series mensuales
+    monthly_series = build_monthly_series(
+        com_year, com_month, {**real, "TOTAL": total}, projection
+    )
+
+    # ── Ensamblar JSON ─────────────────────────────────────────────────────────
+    data = {
+        "meta": {
+            "lastLoadDate":       fg.isoformat(),
+            "lastRunTs":          datetime.utcnow().isoformat(timespec="seconds"),
+            "comercialMonth":     f"{com_year}-{com_month:02d}",
+            "comercialMonthLabel": f"{'Enero Febrero Marzo Abril Mayo Junio Julio Agosto Septiembre Octubre Noviembre Diciembre'.split()[com_month-1]} {com_year}",
+        },
+        "kpis": {
+            "global": {
+                "real":          round(total, 2),
+                "budget":        budget_cur,
+                "projection":    round(projection, 2),
+                "pace":          round(pace, 2),
+                "varProyVsBudget": var_proy,
+                "pctProyBudget": round(projection / budget_cur * 100, 1) if budget_cur else 0,
+                "daysElapsed":   days_elapsed,
+                "daysTotal":     days_total,
+            },
+            "byCenter": {c: center_kpi(c) for c in ["CENTRAL","ALCARRAS","ALMOZARA","CORONA"]},
+        },
+        "series": {
+            "monthly": monthly_series,
+            "rolling": rolling,
+        },
+        "vendors": {
+            c: vend.get(c, []) for c in ["CENTRAL","ALCARRAS","ALMOZARA","CORONA"]
+        },
+        "historical": {
+            "TOTAL":    build_hist_total(com_year, com_month,
+                            {com_year: {com_month: {c: real.get(c,0) for c in real if c!="TOTAL"}}}),
+            "CENTRAL":  hist_central,
+            "ALCARRAS": hist_alcarras,
+            "ALMOZARA": hist_almozara,
+            "CORONA":   hist_corona,
+        },
+    }
+
+    Path(output_path).write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"✓ {output_path} escrito  ({len(json.dumps(data))//1024} KB)")
+    return data
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MAIN
+# ─────────────────────────────────────────────────────────────────────────────
 def main():
-    log.info("=" * 70)
-    log.info("Europa extractor — start")
-    cfg = load_config()
+    print("=== Extractor Europa – inicio ===")
 
-    # Modo local de pruebas (sin IMAP): usar un Excel local directo.
-    local_xlsx = os.environ.get("LOCAL_XLSX_PATH", "").strip()
-    if local_xlsx:
-        xlsx = Path(local_xlsx)
-        if not xlsx.exists():
-            log.error(f"LOCAL_XLSX_PATH no existe: {xlsx}")
-            return
+    # 1. Descargar Excel ERP desde Gmail
+    try:
+        payload, fname, uid, fecha_gen = fetch_latest_erp_excel()
+        print(f"✓ Excel descargado: {fname}  (fecha generación: {fecha_gen})")
+    except Exception as e:
+        print(f"✗ Error IMAP: {e}")
+        traceback.print_exc()
+        raise SystemExit(1)
 
-        fecha_hasta = find_fecha_hasta(xlsx, cfg)
-        gen_dt = find_generation_datetime(xlsx, cfg)
-        if fecha_hasta is None:
-            log.error("No se detectó 'Fecha hasta' en Excel local.")
-            return
+    # 2. Guardar temporalmente y parsear
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
+        tf.write(payload)
+        tmp_path = tf.name
 
-        cm_year, cm_month = commercial_month_from_reference(gen_dt, fecha_hasta)
-        last_load_date = compute_last_load_date_local(gen_dt, fecha_hasta, cm_year, cm_month)
+    try:
+        erp_data = parsear_excel_erp(tmp_path)
+        print(f"✓ ERP parseado: total={erp_data['total']:.2f} €")
+        print(f"  Canales: {erp_data['por_canal']}")
+        print(f"  Vendedores: { {c: len(v) for c,v in erp_data['por_vendedor'].items()} }")
+    finally:
+        os.unlink(tmp_path)
 
-        # Drive append opcional también en modo local (idempotente)
-        key = f"{(gen_dt.isoformat() if gen_dt else 'unknown-gen')}::LOCAL_XLSX::{xlsx.name}"
-        try:
-            drive_append_workbook_to_tab(cfg, xlsx, key, gen_dt, fecha_hasta)
-        except Exception as e:
-            log.warning(f"Drive append (local mode) se saltó por error: {e}")
+    # 3. Guardar en Google Sheets (idempotente)
+    try:
+        append_to_sheets(erp_data)
+    except Exception as e:
+        print(f"  Sheets warning: {e}")
 
-        wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
-        payload = parse_demo_aggregated_from_evolucion(wb, cm_year, cm_month, last_load_date)
-        try:
-            wb.close()
-        except Exception:
-            pass
-        update_json_payload(payload)
-        log.info("Europa extractor — end (local mode)")
-        return
+    # 4. Generar data.json
+    generar_data_json(erp_data, output_path="data.json")
 
-    conn = connect_gmail(cfg)
-    uid = find_latest_email_by_generation(conn, cfg)
-    if uid is None:
-        log.warning("No se encontró email válido.")
-        conn.logout()
-        return
-
-    # Need message object for metadata key
-    _, full = conn.fetch(uid, "(RFC822)")
-    msg = email.message_from_bytes(full[0][1])
-
-    gen_dt = get_excel_generacion_datetime(msg, cfg)
-    fecha_hasta = None
-    # fecha_hasta from the same attachment
-    with tempfile.TemporaryDirectory() as tmp:
-        xlsx = get_excel_attachment_path(conn, uid, cfg, tmp)
-        conn.logout()
-        if xlsx is None:
-            log.error("Adjunto no encontrado.")
-            return
-
-        fecha_hasta = find_fecha_hasta(xlsx, cfg)
-        # Mes comercial: prioridad fecha de generación, fallback fecha_hasta.
-        if fecha_hasta is None and gen_dt is None:
-            log.error("No se detectó ni 'Fecha generación' ni 'Fecha hasta' en Excel.")
-            return
-        cm_year, cm_month = commercial_month_from_reference(gen_dt, fecha_hasta)
-        last_load_date = compute_last_load_date_local(gen_dt, fecha_hasta, cm_year, cm_month)
-
-        # report key for idempotence
-        gen_key = gen_dt.isoformat() if gen_dt else "unknown-gen"
-        subj = _decode_header_value(msg.get("Subject"))
-        key = f"{gen_key}::{subj}".replace("\n"," ").strip()
-
-        # Drive copy (optional)
-        try:
-            drive_append_workbook_to_tab(cfg, xlsx, key, gen_dt, fecha_hasta)
-        except Exception as e:
-            log.warning(f"Drive append: se saltó por error: {e}")
-
-        # Build data payload (demo aggregated parser)
-        wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
-        payload = parse_demo_aggregated_from_evolucion(wb, cm_year, cm_month, last_load_date)
-        try:
-            wb.close()
-        except Exception:
-            pass
-
-        update_json_payload(payload)
-
-    log.info("Europa extractor — end")
+    print("=== Extractor Europa – fin ===")
 
 
 if __name__ == "__main__":
     main()
-
