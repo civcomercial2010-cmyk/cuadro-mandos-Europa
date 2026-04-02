@@ -1,749 +1,901 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hipopótamo Europa — Cuadro de Mando</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cuadro de Mando · Hipopótamo Europa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Root ─────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#eef1f5;
+  --navy:#0c1d38;
+  --navy2:#162d50;
+  --navy3:#1d3a64;
+  --card:#ffffff;
+  --bd:#e2e8f0;
+  --bd2:#f1f5f9;
+  --tx-h:#0f172a;
+  --tx:#374151;
+  --tx-m:#64748b;
+  --tx-s:#94a3b8;
+  --blue:#185fa5;
+  --blue-d:#0e4a84;
+  --orange:#e8531a;
+  --green:#16a34a;
+  --green-l:#f0fdf4;
+  --green-t:#15803d;
+  --red:#dc2626;
+  --red-l:#fef2f2;
+  --red-t:#b91c1c;
+  --gray-bar:rgba(160,180,205,0.65);
+  --r:10px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--tx);font-size:14px;line-height:1.5;min-height:100vh}
+
+/* ── Topbar ───────────────────────────────────────────────── */
+#topbar{background:var(--navy);color:#fff;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:58px;position:sticky;top:0;z-index:200;border-bottom:1px solid rgba(255,255,255,.05)}
+.t-logo{display:flex;align-items:center;gap:10px}
+.logo-sq{width:36px;height:36px;background:var(--orange);border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:#fff;flex-shrink:0;letter-spacing:-.5px}
+.t-title p{font-family:'Sora',sans-serif;font-size:15px;font-weight:600;line-height:1.2;color:#f1f5f9}
+.t-title small{font-size:11px;opacity:.4;font-weight:400}
+.date-badge{background:var(--navy2);border-radius:8px;padding:7px 14px;text-align:right;line-height:1.65;border:1px solid rgba(255,255,255,.06)}
+.date-badge .b1{font-size:13px;font-weight:500;color:#e2e8f0}
+.date-badge .b2{font-size:11px;color:#6b93be}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+#tab-nav{background:#fff;border-bottom:1.5px solid var(--bd);display:flex;padding:0 20px;overflow-x:auto;gap:0;-ms-overflow-style:none;scrollbar-width:none}
+#tab-nav::-webkit-scrollbar{display:none}
+.tab-btn{padding:13px 20px;font-size:13px;font-weight:500;color:var(--tx-m);cursor:pointer;border-bottom:2.5px solid transparent;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;font-family:'DM Sans',sans-serif;transition:color .15s,border-color .15s}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+.tab-btn:hover:not(.active){color:var(--tx)}
+
+/* ── Content ──────────────────────────────────────────────── */
+.tab-content{padding:18px 20px;display:none}
+.tab-content.active{display:block}
+
+/* ── Section header ───────────────────────────────────────── */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.sec-label{font-family:'Sora',sans-serif;font-size:10px;font-weight:700;color:var(--tx-s);text-transform:uppercase;letter-spacing:.12em}
+.sels{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+select{padding:5px 9px;border:1px solid var(--bd);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--tx);background:#fff;cursor:pointer;font-weight:500;-webkit-appearance:auto}
+
+/* ── KPI Row (2 cards) ────────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.kcard{background:var(--card);border-radius:var(--r);padding:13px 15px;border:1px solid var(--bd);position:relative;overflow:hidden}
+.kcard::after{content:'';position:absolute;top:0;left:0;width:3px;height:100%;border-radius:var(--r) 0 0 var(--r)}
+.kcard.ck-blue::after{background:var(--blue)}
+.kcard.ck-slate::after{background:#475569}
+.klbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--tx-s);margin-bottom:4px}
+.kval{font-family:'Sora',sans-serif;font-size:22px;font-weight:700;color:var(--tx-h);line-height:1.1;margin-bottom:6px}
+.ksub-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:12px;color:var(--tx-m);margin-bottom:4px}
+.kdiv{height:1px;background:var(--bd2);margin:7px 0}
+.kfooter{font-size:12px;font-weight:600}
+.kfooter.red{color:var(--red)}
+.kfooter.green{color:var(--green)}
+.k-proj{font-size:12px;font-weight:600;color:var(--blue)}
+.pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600}
+.pill-r{background:var(--red-l);color:var(--red-t)}
+.pill-g{background:var(--green-l);color:var(--green-t)}
+.pill-n{background:#f1f5f9;color:#475569}
+
+/* ── Cards ────────────────────────────────────────────────── */
+.card{background:var(--card);border-radius:var(--r);border:1px solid var(--bd);margin-bottom:14px;overflow:hidden}
+.card-hdr{padding:13px 17px 0;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.card-title{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;color:var(--tx-h)}
+.card-sub{font-size:11px;color:var(--tx-s);margin-top:2px}
+.card-body{padding:11px 17px 15px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx-m);font-weight:500}
+.lsq{width:10px;height:10px;border-radius:2px}
+.lln{width:20px;height:2.5px;border-radius:2px}
+
+/* ── Rolling ──────────────────────────────────────────────── */
+.roll-top{display:flex;gap:28px;padding:13px 17px 11px;flex-wrap:wrap;border-bottom:1px solid var(--bd2);align-items:flex-start}
+.rblk{min-width:120px}
+.rlbl{font-size:11px;color:var(--tx-s);margin-bottom:2px}
+.rnum{font-family:'Sora',sans-serif;font-size:15px;font-weight:700;color:var(--tx-h)}
+.rdelta{font-family:'Sora',sans-serif;font-size:18px;font-weight:700}
+.rdelta.neg{color:var(--red)}
+.rdelta.pos{color:var(--green)}
+
+/* ── Centro grid ──────────────────────────────────────────── */
+.centro-toolbar{display:flex;align-items:center;justify-content:flex-end;margin-bottom:11px;gap:8px}
+.btn-sm{padding:5px 12px;border:1px solid var(--bd);border-radius:6px;font-size:12px;font-weight:600;background:#fff;color:var(--tx-m);cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s}
+.btn-sm:hover{background:var(--bg)}
+.centro-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ccard{background:var(--card);border-radius:var(--r);border:1px solid var(--bd);overflow:hidden}
+.ccard-hdr{background:var(--navy);color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+.cname{font-family:'Sora',sans-serif;font-size:13px;font-weight:700;letter-spacing:.03em}
+.tbtn{background:var(--navy3);border:none;color:#7fa3cc;font-size:11px;font-weight:600;padding:4px 9px;border-radius:4px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s}
+.tbtn:hover{background:#244d8a}
+.crows{padding:10px 14px}
+.crow{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--bd2);font-size:13px}
+.crow:last-child{border:none}
+.ck{color:var(--tx-m);font-weight:500}
+.cv{font-weight:600;color:var(--tx-h);font-family:'Sora',sans-serif;font-size:13px}
+.cv-up{color:var(--green)}
+.cv-dn{color:var(--red)}
+
+/* ── Vendor tables ────────────────────────────────────────── */
+.vtable{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+.vtable th{background:#f8fafc;color:var(--tx-s);font-weight:700;text-align:left;padding:5px 8px;border-bottom:1px solid var(--bd);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.vtable td{padding:6px 8px;border-bottom:1px solid var(--bd2);color:var(--tx)}
+.vtable tr:last-child td{border:none}
+.vnum{font-family:'Sora',sans-serif;text-align:right!important}
+.vright{text-align:right!important}
+
+/* ── Vendor groups ────────────────────────────────────────── */
+.vg{margin-bottom:18px}
+.vg-hdr{background:var(--navy);color:#6b93be;font-size:10px;font-weight:700;padding:8px 14px;border-radius:8px 8px 0 0;text-transform:uppercase;letter-spacing:.09em;font-family:'Sora',sans-serif}
+.vg-body{border:1px solid var(--bd);border-top:none;border-radius:0 0 8px 8px;overflow:hidden}
+
+/* ── Hist tabs ────────────────────────────────────────────── */
+.htabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.htab{padding:5px 13px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:#fff;color:var(--tx-m);transition:all .15s}
+.htab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* ── Hist table ───────────────────────────────────────────── */
+.htable-wrap{overflow-x:auto}
+.htable{width:100%;border-collapse:collapse;font-size:11px;min-width:720px}
+.htable th{background:var(--navy);color:#6b93be;font-size:9px;font-weight:700;padding:7px 5px;text-align:right;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.htable th:first-child{text-align:left;min-width:44px}
+.htable td{padding:6px 5px;text-align:right;border-bottom:1px solid var(--bd2);color:var(--tx);font-size:11px}
+.htable td:first-child{text-align:left;font-weight:700;color:var(--tx-h);font-size:12px}
+.htable tr:hover td{background:#f8fafc}
+.htable .tot{font-weight:700;color:var(--blue)}
+.htable .yp{color:var(--green);font-weight:600}
+.htable .yn{color:var(--red);font-weight:600}
+.htable .cy td{background:#eff6ff}
+.nota{font-size:10px;color:var(--tx-s);margin-top:8px;font-style:italic;padding:0 2px}
+.empty-msg{color:var(--tx-s);text-align:center;padding:16px;font-size:12px}
+
+/* ── Loading ──────────────────────────────────────────────── */
+#loading{position:fixed;inset:0;background:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px;transition:opacity .4s}
+#loading.hide{opacity:0;pointer-events:none}
+.spin{width:36px;height:36px;border:3px solid rgba(255,255,255,.15);border-top-color:#e8531a;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p{font-family:'Sora',sans-serif;font-size:14px;color:#6b93be;letter-spacing:.04em}
+
+@media(max-width:640px){
+  .kpi-row,.centro-grid{grid-template-columns:1fr}
+  .roll-top{gap:16px}
+}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <div class="brand">
-        <div class="logo">E</div>
-        <div>
-          <div class="title">Hipopótamo Europa S.L.</div>
-          <div class="subtitle">Cuadro de mando comercial · Europa</div>
-        </div>
-      </div>
-      <div class="badge">
-        <div class="lbl">Datos a fecha</div>
-        <div class="val" id="header-lastLoad">—</div>
-        <div class="muted" id="header-lastRun" style="margin-top:6px;font-size:12px;">—</div>
-      </div>
+
+<!-- Loading overlay -->
+<div id="loading">
+  <div class="logo-sq" style="width:48px;height:48px;font-size:18px;margin-bottom:8px">H<span style="font-size:13px;font-weight:400">E</span></div>
+  <div class="spin"></div>
+  <p>Cargando datos...</p>
+</div>
+
+<header id="topbar">
+  <div class="t-logo">
+    <div class="logo-sq">H<span style="font-size:10px;font-weight:400">E</span></div>
+    <div class="t-title">
+      <p>Hipopótamo Europa S.L.</p>
+      <small>Cuadro de mando comercial</small>
     </div>
+  </div>
+  <div class="date-badge">
+    <div class="b1" id="badge-date">—</div>
+    <div class="b2" id="badge-days">—</div>
+    <div class="b2" id="badge-sync">—</div>
+  </div>
+</header>
 
-    <div class="card">
-      <div class="section-head" style="margin-bottom:6px;">
-        <div>
-          <div class="section-title">Navegación</div>
-          <div class="section-note" style="margin-top:6px;">
-            Filtros: Mes comercial · Centro. Drill-down: Centro → Vendedor (si existe en data.json).
-          </div>
-        </div>
-        <div class="pill green" id="load-status">Cargando…</div>
-      </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
-        <div>
-          <div class="muted" style="font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;">Mes comercial</div>
-          <select id="sel-month" style="margin-top:6px;padding:10px 12px;border-radius:999px;border:1px solid var(--bdr);background:var(--srf);font-weight:900;color:var(--txt2);">
-            <option value="">—</option>
-          </select>
-        </div>
-        <div>
-          <div class="muted" style="font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;">Centro</div>
-          <select id="sel-center" style="margin-top:6px;padding:10px 12px;border-radius:999px;border:1px solid var(--bdr);background:var(--srf);font-weight:900;color:var(--txt2);">
-            <option value="">TODO</option>
-          </select>
-        </div>
-      </div>
+<nav id="tab-nav">
+  <button class="tab-btn active" onclick="goTab('resumen',this)">Resumen ejecutivo</button>
+  <button class="tab-btn" onclick="goTab('centros',this)">Ventas por centro</button>
+  <button class="tab-btn" onclick="goTab('vendedores',this)">Vendedores</button>
+  <button class="tab-btn" onclick="goTab('historico',this)">Histórico</button>
+</nav>
+
+<!-- ── RESUMEN ─────────────────────────────────────────────── -->
+<section id="sec-resumen" class="tab-content active">
+  <div class="sec-hdr">
+    <span class="sec-label">Cuadro ejecutivo</span>
+    <div class="sels">
+      <select id="sr-year"  onchange="onResumenChange()"></select>
+      <select id="sr-month" onchange="onResumenChange()"></select>
+      <select id="sr-center" onchange="onResumenChange()"></select>
     </div>
-
-    <div class="navrow">
-      <button class="navbtn active" id="tab-home" type="button">Resumen ejecutivo</button>
-      <button class="navbtn" id="tab-centers" type="button">Ventas por centro</button>
-      <button class="navbtn" id="tab-history" type="button">Histórico</button>
-      <button class="navbtn" id="tab-vendors" type="button">Vendedores</button>
-    </div>
-
-    <!-- VIEW: EJECUTIVO -->
-    <div id="view-executivo">
-      <div class="section-card tab-pane" data-pane="home">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Cuadro ejecutivo — Proyección mes (KPI clave)</div>
-            <div class="section-note">Proyección = real ÷ días transcurridos × días totales, con control de calendario.</div>
-          </div>
-          <div class="pill blue" id="exec-month-label">—</div>
-        </div>
-
-        <div class="kpi-grid g4">
-          <div class="kpi blue">
-            <div class="label">Ventas real CM (€)</div>
-            <div class="value" id="kpi-real">—</div>
-            <div class="hint">Acumulado real en el mes comercial</div>
-            <div class="hint" id="kpi-days-mini" style="font-size:11px;margin-top:4px;">Días: — / —</div>
-          </div>
-          <div class="kpi amber">
-            <div class="label">Proyección mes (€)</div>
-            <div class="value" id="kpi-proy">—</div>
-            <div class="hint">Proyección a cierre</div>
-          </div>
-          <div class="kpi">
-            <div class="label">Presupuesto CM (€)</div>
-            <div class="value" id="kpi-budget">—</div>
-            <div class="hint">Plan del mes</div>
-          </div>
-          <div class="kpi green">
-            <div class="label">% Cumplimiento</div>
-            <div class="value" id="kpi-pct">—</div>
-            <div class="hint">Proyección / presupuesto</div>
-          </div>
-        </div>
-
-        <div class="kpi-grid" style="margin-top:14px;">
-          <div class="kpi blue">
-            <div class="label">Ventas/día (pace)</div>
-            <div class="value" id="kpi-pace">—</div>
-            <div class="hint">Real / días transcurridos</div>
-          </div>
-          <div class="kpi red">
-            <div class="label">YoY real (CM)</div>
-            <div class="value" id="kpi-yoy-real">—</div>
-            <div class="hint">Variación vs mismo CM año anterior</div>
-          </div>
-          <div class="kpi">
-            <div class="label">YoY proyección</div>
-            <div class="value" id="kpi-yoy-proy">—</div>
-            <div class="hint">Proyección vs YoY</div>
-          </div>
-        </div>
-
-        <div class="row2">
-          <div class="panel2">
-            <div class="sub">Calendario — días</div>
-            <div class="line"><span class="k">Días transcurridos</span><span class="v" id="days-elapsed">—</span></div>
-            <div class="line"><span class="k">Días totales mes</span><span class="v" id="days-total">—</span></div>
-            <div class="subnote">
-              Laborables: Lunes a Sábado, descontando festivos (Zaragoza / Alcarrás→Lleida).
-            </div>
-          </div>
-          <div class="panel2">
-            <div class="sub">Control — desviaciones</div>
-            <div class="line"><span class="k">Var real vs pres.</span><span class="v" id="var-real">—</span></div>
-            <div class="line"><span class="k">Var proy vs pres.</span><span class="v" id="var-proy">—</span></div>
-            <div class="subnote">Semáforo por umbrales (si la implementación añade colores por KPI).</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-card tab-pane" data-pane="home">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Evolución mensual (real / presupuesto / proyección)</div>
-            <div class="section-note">Aparece arriba para seguimiento rápido de tendencia y cumplimiento.</div>
-          </div>
-          <div class="pill green">Chart.js</div>
-        </div>
-        <div class="chart-legend">
-          <div class="leg"><span class="leg-line" style="background:rgba(26,86,232,.45);"></span>Real</div>
-          <div class="leg"><span class="leg-line" style="background:rgba(196,122,10,.45);"></span>Presupuesto</div>
-          <div class="leg"><span class="leg-line" style="background:rgba(13,159,110,.35);"></span>Proyección (mes actual)</div>
-        </div>
-        <div class="chart-placeholder" style="height:auto;border:none;background:transparent;padding:0;">
-          <div style="height:260px;">
-            <canvas id="chart-evolution"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-card tab-pane" data-pane="centers">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Ventas por centro</div>
-            <div class="section-note">Tabla responsive: en móvil se apila (sin scroll).</div>
-          </div>
-          <div class="pill blue">Drill-down centro</div>
-        </div>
-        <div class="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Centro</th>
-                <th>Real</th>
-                <th>Proy.</th>
-                <th>Pres.</th>
-                <th>%</th>
-                <th>YoY</th>
-                <th>Cuota Europa</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-centers"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- VIEW: VENDEDORES -->
-    <div id="view-centro" class="tab-pane" data-pane="vendors" style="display:none;">
-      <div class="section-card">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Detalle Centro</div>
-            <div class="section-note">Vendedores activos en el mes comercial (si existen en data.json).</div>
-          </div>
-          <div class="pill blue" id="center-pill">—</div>
-        </div>
-        <div class="kpi-grid g4">
-          <div class="kpi blue">
-            <div class="label">Ventas real CM (€)</div>
-            <div class="value" id="c-real">—</div>
-            <div class="hint">Centro</div>
-          </div>
-          <div class="kpi amber">
-            <div class="label">Proyección mes (€)</div>
-            <div class="value" id="c-proy">—</div>
-            <div class="hint">A cierre</div>
-          </div>
-          <div class="kpi">
-            <div class="label">Presupuesto CM (€)</div>
-            <div class="value" id="c-budget">—</div>
-            <div class="hint">Plan</div>
-          </div>
-          <div class="kpi green">
-            <div class="label">% Cumplimiento</div>
-            <div class="value" id="c-pct">—</div>
-            <div class="hint">Proy / Pres</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Vendedores</div>
-            <div class="section-note">Si faltan ventas por vendedor, se mostrará `—` sin romper el cuadro.</div>
-          </div>
-          <button class="navbtn" onclick="setActiveTab('home')" style="cursor:pointer;">↩ Volver</button>
-        </div>
-        <div class="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Vendedor</th>
-                <th>Real</th>
-                <th>Proy.</th>
-                <th>YoY</th>
-                <th>Cuota centro</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-vendors"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-      <div class="section-card tab-pane" data-pane="history">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Histórico anual (todos los años previos)</div>
-            <div class="section-note">Tabla con total anual y YoY (si data.json lo aporta).</div>
-          </div>
-          <div class="pill blue" id="history-pill">TODO</div>
-        </div>
-        <div class="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Año</th>
-                <th>Total anual</th>
-                <th>YoY</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-history"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="section-card tab-pane" data-pane="home">
-        <div class="section-head">
-          <div>
-            <div class="section-title">Rolling 12 meses + YTD</div>
-            <div class="section-note">KPIs y gráficos para control directivo.</div>
-          </div>
-          <div class="pill blue">Tendencia</div>
-        </div>
-
-        <div class="kpi-grid">
-          <div class="kpi blue">
-            <div class="label">Rolling 12m</div>
-            <div class="value" id="kpi-rolling">—</div>
-            <div class="hint">Suma últimos 12 CM</div>
-          </div>
-          <div class="kpi">
-            <div class="label">YoY Rolling</div>
-            <div class="value" id="kpi-rolling-yoy">—</div>
-            <div class="hint">vs rolling del año anterior</div>
-          </div>
-          <div class="kpi green">
-            <div class="label">YTD comercial</div>
-            <div class="value" id="kpi-ytd">—</div>
-            <div class="hint">Acumulado CM del año</div>
-          </div>
-          <div class="kpi red">
-            <div class="label">YoY YTD</div>
-            <div class="value" id="kpi-ytd-yoy">—</div>
-            <div class="hint">YTD vs mismo YTD año anterior</div>
-          </div>
-        </div>
-
-        <div class="chart-placeholder" style="height:auto;border:none;background:transparent;padding:0;">
-          <div style="height:230px;">
-            <canvas id="chart-rolling"></canvas>
-          </div>
-        </div>
-      </div>
-
   </div>
 
-  <script>
-    const MONTH_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  <div class="kpi-row">
+    <div class="kcard ck-blue">
+      <div class="klbl">Ventas mes</div>
+      <div class="kval" id="kr-real">—</div>
+      <div class="ksub-row">
+        <span class="pill pill-n">Proyección</span>
+        <span class="k-proj" id="kr-proj">—</span>
+      </div>
+      <div class="kdiv"></div>
+      <div class="ksub-row">
+        <span class="pill pill-n">Media diaria</span>
+        <span style="font-size:12px;font-weight:600;color:var(--tx-h)" id="kr-pace">—</span>
+      </div>
+    </div>
+    <div class="kcard ck-slate">
+      <div class="klbl">Presupuesto</div>
+      <div class="kval" id="kr-budget">—</div>
+      <div class="kdiv"></div>
+      <div class="kfooter" id="kr-dev">—</div>
+    </div>
+  </div>
 
-    let state = null;
-    let currentMonthKey = null;
-    let currentCenterId = null;
-    let charts = {};
-    const CENTER_OPTIONS = ["CENTRAL","CORONA","ALMOZARA","ALCARRAS"];
-    let activeTab = 'home';
+  <div class="card">
+    <div class="card-hdr">
+      <div>
+        <div class="card-title">Evolución mensual</div>
+        <div class="card-sub" id="evo-sub">Ventas reales vs. año anterior y presupuesto</div>
+      </div>
+      <div class="legend">
+        <span class="li"><span class="lsq" style="background:#185fa5"></span><span id="leg-real">Real</span></span>
+        <span class="li"><span class="lsq" style="background:rgba(160,180,205,.7)"></span><span id="leg-prev">Año anterior</span></span>
+        <span class="li"><span class="lln" style="background:#e8531a"></span>Presupuesto</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div style="position:relative;width:100%;height:215px"><canvas id="chart-evo"></canvas></div>
+    </div>
+  </div>
 
-    function fmtEur(v){
-      if(v === null || v === undefined || Number.isNaN(v)) return '—';
-      try { return new Intl.NumberFormat('es-ES', {maximumFractionDigits:0}).format(v) + ' €'; }
-      catch { return String(v); }
+  <div class="card">
+    <div class="roll-top">
+      <div class="rblk">
+        <div class="rlbl" id="roll-lbl-cur">Rolling —</div>
+        <div class="rnum" id="roll-num-cur">—</div>
+      </div>
+      <div class="rblk">
+        <div class="rlbl" id="roll-lbl-prev">Rolling —</div>
+        <div class="rnum" id="roll-num-prev">—</div>
+      </div>
+      <div class="rblk">
+        <div class="rlbl">Variación interanual</div>
+        <div class="rdelta" id="roll-delta">—</div>
+      </div>
+    </div>
+    <div class="card-body" style="padding-top:10px">
+      <div style="position:relative;width:100%;height:155px"><canvas id="chart-roll"></canvas></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CENTROS ─────────────────────────────────────────────── -->
+<section id="sec-centros" class="tab-content">
+  <div class="sec-hdr">
+    <span class="sec-label">Ventas por centro</span>
+    <div class="sels">
+      <select id="sc-year"  onchange="renderCentros()"></select>
+      <select id="sc-month" onchange="renderCentros()"></select>
+    </div>
+  </div>
+  <div class="centro-toolbar">
+    <button class="btn-sm" id="btn-exp-all" onclick="toggleAll()">Expandir todos ▼</button>
+  </div>
+  <div class="centro-grid" id="centros-grid"></div>
+</section>
+
+<!-- ── VENDEDORES ──────────────────────────────────────────── -->
+<section id="sec-vendedores" class="tab-content">
+  <div class="sec-hdr">
+    <span class="sec-label">Vendedores</span>
+    <div class="sels">
+      <select id="sv-year"  onchange="renderVendedores()"></select>
+      <select id="sv-month" onchange="renderVendedores()"></select>
+    </div>
+  </div>
+  <div id="vend-body"></div>
+</section>
+
+<!-- ── HISTÓRICO ───────────────────────────────────────────── -->
+<section id="sec-historico" class="tab-content">
+  <div class="sec-hdr"><span class="sec-label">Histórico de ventas</span></div>
+  <div class="htabs" id="hist-tabs"></div>
+  <div class="card" style="padding:15px 17px">
+    <div class="htable-wrap">
+      <table class="htable" id="hist-table"></table>
+    </div>
+    <div class="nota" id="hist-nota"></div>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+'use strict';
+
+// ── Globals ────────────────────────────────────────────────
+let D = null;         // data.json content
+let chartEvo = null;
+let chartRoll = null;
+let allExp = false;
+let activeHistCenter = 'TOTAL';
+const MN = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const CLABELS = {CENTRAL:'Central',CORONA:'Corona',ALMOZARA:'Almozara',ALCARRAS:'Alcarràs'};
+
+// ── Format helpers ─────────────────────────────────────────
+function fmt(n,dec=0){
+  if(n==null||isNaN(n))return '—';
+  return new Intl.NumberFormat('es-ES',{minimumFractionDigits:dec,maximumFractionDigits:dec}).format(Math.round(n*Math.pow(10,dec))/Math.pow(10,dec));
+}
+function fmtE(n){return n!=null&&!isNaN(n)?fmt(n)+' €':'—'}
+function fmtK(n){if(n==null||isNaN(n))return '—';const v=Math.round(n/1000);return v+'k'}
+function sign(n){return n>=0?'+':''}
+
+// ── Flexible data accessor ─────────────────────────────────
+function gv(obj,...keys){
+  for(const k of keys){if(obj&&obj[k]!==undefined)return obj[k]}
+  return null;
+}
+
+// ── Commercial month detection ──────────────────────────────
+function getComercialMonth(){
+  if(!D)return {year:new Date().getFullYear(),month:new Date().getMonth()+1,label:''};
+  const meta=D.meta||{};
+  const cm=gv(meta,'comercialMonth','comercial_month','mes_comercial');
+  if(cm){
+    const[y,m]=cm.split('-');
+    return{year:parseInt(y),month:parseInt(m),label:`${MN[parseInt(m)-1]} ${y}`};
+  }
+  const ld=gv(meta,'lastLoadDate','last_load_date','fecha_carga')||'';
+  if(ld){
+    const d=new Date(ld);
+    const day=d.getDate();
+    let y=d.getFullYear(),m=d.getMonth()+1;
+    if(day>=26){m++;if(m>12){m=1;y++}}
+    return{year:y,month:m,label:`${MN[m-1]} ${y}`};
+  }
+  const t=new Date();
+  const day=t.getDate();
+  let y=t.getFullYear(),m=t.getMonth()+1;
+  if(day>=26){m++;if(m>12){m=1;y++}}
+  return{year:y,month:m,label:`${MN[m-1]} ${y}`};
+}
+
+// ── Available years ─────────────────────────────────────────
+function getYears(){
+  if(!D)return[2026,2025];
+  const ser=gv(D,'series')||{};
+  const mon=gv(ser,'monthly')||D.monthly||D.serie_mensual||{};
+  const hy=Object.keys(mon).map(Number).filter(Boolean);
+  if(hy.length)return hy.sort((a,b)=>b-a);
+  const hist=D.historical||D.historico||{};
+  const tot=hist.TOTAL||hist.total||{};
+  const ty=Object.keys(tot).map(Number).filter(Boolean);
+  if(ty.length)return ty.sort((a,b)=>b-a);
+  return[2026,2025];
+}
+
+// ── Centers from data ───────────────────────────────────────
+function getCenters(){
+  if(!D)return['CENTRAL','CORONA','ALMOZARA','ALCARRAS'];
+  const kpis=D.kpis||{};
+  const byC=kpis.byCenter||kpis.by_center||kpis.centros||{};
+  const k=Object.keys(byC);
+  return k.length?k:['CENTRAL','CORONA','ALMOZARA','ALCARRAS'];
+}
+
+// ── Monthly series for a year ───────────────────────────────
+function getMonthly(year){
+  if(!D)return[];
+  const ser=gv(D,'series')||{};
+  const mon=gv(ser,'monthly')||D.monthly||D.serie_mensual||{};
+  const yd=mon[year]||mon[String(year)]||[];
+  if(Array.isArray(yd))return yd;
+  if(typeof yd==='object'){
+    return Object.entries(yd).sort(([a],[b])=>a.localeCompare(b))
+      .map(([m,data])=>({month:parseInt(m),...data}));
+  }
+  return[];
+}
+
+// ── Rolling series ──────────────────────────────────────────
+function getRolling(){
+  if(!D)return[];
+  const ser=gv(D,'series')||{};
+  return ser.rolling||D.rolling||D.rolling_12m||[];
+}
+
+// ── KPI extraction ──────────────────────────────────────────
+function getKPI(month,center){
+  if(!D)return{};
+  const kpis=D.kpis||{};
+  const global=kpis.global||kpis.Global||{};
+  if(center==='all'&&month!=='acumulado')return global;
+  if(center!=='all'&&month!=='acumulado'){
+    const byC=kpis.byCenter||kpis.by_center||kpis.centros||{};
+    return byC[center]||{};
+  }
+  // Acumulado: sum from series
+  const year=parseInt(document.getElementById('sr-year').value)||new Date().getFullYear();
+  return computeAcumulado(year,center);
+}
+
+function computeAcumulado(year,center){
+  const monthly=getMonthly(year);
+  if(!monthly.length){
+    const kpis=D.kpis||{};
+    return kpis.global||{};
+  }
+  let real=0,budget=0,proj=0;
+  monthly.forEach(m=>{
+    const r=gv(m,'real','ventas_real')||0;
+    const b=gv(m,'budget','presupuesto')||0;
+    const p=gv(m,'projection','proyeccion','proyección')||0;
+    if(center==='all'){real+=r;budget+=b;proj+=p;}
+    else{
+      const byC=m.byCenter||m.centros||{};
+      const cd=byC[center]||{};
+      real+=gv(cd,'real','ventas_real')||0;
+      budget+=gv(cd,'budget','presupuesto')||0;
+      proj+=gv(cd,'projection','proyeccion')||0;
     }
-    function fmtPct(v){
-      if(v === null || v === undefined || Number.isNaN(v)) return '—';
-      return (v).toFixed(1) + '%';
+  });
+  return{real,budget,projection:proj,varProyVsBudget:proj-budget};
+}
+
+// ── Tab navigation ──────────────────────────────────────────
+function goTab(id,el){
+  document.querySelectorAll('.tab-content').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  el.classList.add('active');
+  if(id==='centros')renderCentros();
+  if(id==='vendedores')renderVendedores();
+  if(id==='historico')renderHistorico();
+}
+
+// ── Selectors builder ───────────────────────────────────────
+function buildYearSel(id,defYear){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML='';
+  getYears().forEach(y=>{
+    const o=document.createElement('option');
+    o.value=y;o.textContent=y;
+    if(y===defYear)o.selected=true;
+    el.appendChild(o);
+  });
+}
+
+function buildMonthSel(id,defMonth,withAcum=true){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML='';
+  if(withAcum){
+    const o=document.createElement('option');o.value='acumulado';o.textContent='Acumulado';el.appendChild(o);
+  }
+  MN.forEach((name,i)=>{
+    const o=document.createElement('option');
+    o.value=String(i+1).padStart(2,'0');o.textContent=name;
+    if(o.value===String(defMonth).padStart(2,'0'))o.selected=true;
+    el.appendChild(o);
+  });
+}
+
+function buildCenterSel(id){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML='';
+  const ao=document.createElement('option');ao.value='all';ao.textContent='Todos los centros';el.appendChild(ao);
+  getCenters().forEach(c=>{
+    const o=document.createElement('option');o.value=c;o.textContent=CLABELS[c]||c;el.appendChild(o);
+  });
+}
+
+function selVal(id){const el=document.getElementById(id);return el?el.value:null}
+
+// ── Init selectors ──────────────────────────────────────────
+function initSelectors(){
+  const cm=getComercialMonth();
+  buildYearSel('sr-year',cm.year);
+  buildMonthSel('sr-month',cm.month,true);
+  document.getElementById('sr-month').value=String(cm.month).padStart(2,'0');
+  buildCenterSel('sr-center');
+  buildYearSel('sc-year',cm.year);
+  buildMonthSel('sc-month',cm.month,true);
+  document.getElementById('sc-month').value=String(cm.month).padStart(2,'0');
+  buildYearSel('sv-year',cm.year);
+  buildMonthSel('sv-month',cm.month,true);
+  document.getElementById('sv-month').value=String(cm.month).padStart(2,'0');
+}
+
+// ── Badge ───────────────────────────────────────────────────
+function renderBadge(){
+  if(!D)return;
+  const meta=D.meta||{};
+  const ld=gv(meta,'lastLoadDate','last_load_date')||'';
+  const ts=gv(meta,'lastRunTs','last_run_ts','lastRunTimestamp')||'';
+  let dateStr=ld;
+  if(ld.includes('-')){const[y,m,d]=ld.split('-');dateStr=`${d}/${m}/${y}`}
+  const kGlobal=D.kpis?.global||{};
+  const de=gv(kGlobal,'daysElapsed','days_elapsed','diasTranscurridos')||0;
+  const dt=gv(kGlobal,'daysTotal','days_total','diasTotales')||0;
+  const cm=getComercialMonth();
+  let syncStr=ts;
+  try{const sd=new Date(ts);if(!isNaN(sd))syncStr=sd.toLocaleDateString('es-ES')+' '+sd.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}catch(e){}
+  document.getElementById('badge-date').textContent=`Datos a fecha: ${dateStr}`;
+  document.getElementById('badge-days').textContent=`${cm.label}  ·  Día ${de} de ${dt}`;
+  document.getElementById('badge-sync').textContent=`Últ. sync: ${syncStr}`;
+}
+
+// ── Resumen KPIs ────────────────────────────────────────────
+function onResumenChange(){renderKPIs();renderEvoChart();renderRolling()}
+
+function renderKPIs(){
+  const month=selVal('sr-month');
+  const center=selVal('sr-center')||'all';
+  const kpi=getKPI(month,center);
+  const real=gv(kpi,'real','ventas_real')||0;
+  const budget=gv(kpi,'budget','presupuesto')||0;
+  const proj=gv(kpi,'projection','proyeccion','proyección')||0;
+  const pace=gv(kpi,'pace','media_diaria','ventas_dia')||0;
+  const varProy=gv(kpi,'varProyVsBudget','var_proy_vs_budget')||(proj-budget);
+  document.getElementById('kr-real').textContent=fmtE(real);
+  document.getElementById('kr-proj').textContent=fmtE(proj);
+  document.getElementById('kr-pace').textContent=pace?fmtE(pace)+' / día':'—';
+  document.getElementById('kr-budget').textContent=fmtE(budget);
+  const devEl=document.getElementById('kr-dev');
+  if(varProy>0){devEl.className='kfooter green';devEl.textContent='▲ Superado en +'+fmt(varProy)+' €'}
+  else if(varProy<0){devEl.className='kfooter red';devEl.textContent='▼ Faltan '+fmt(varProy)+' €'}
+  else{devEl.className='kfooter';devEl.textContent='En línea con el proyectado'}
+}
+
+// ── Evolución chart ─────────────────────────────────────────
+function buildMonthArr(data,field){
+  const arr=new Array(12).fill(null);
+  data.forEach(m=>{
+    const idx=(parseInt(m.month||m.mes||1))-1;
+    if(idx>=0&&idx<12){
+      const v=gv(m,field);
+      arr[idx]=v!=null?Math.round(v/1000):null;
     }
+  });
+  return arr;
+}
 
-    function setText(id, v){ const el=document.getElementById(id); if(el) el.textContent = v; }
-
-    function getMonthKeys(){
-      if(!state) return [];
-      return Object.keys(state.totalsByMonth || {}).sort();
-    }
-
-    function canonicalCenterId(raw){
-      const s = String(raw || '').toUpperCase();
-      if(s.includes('ALCARR') || s.includes('LERIDA') || s.includes('LLEIDA')) return 'ALCARRAS';
-      if(s.includes('ALMOZARA')) return 'ALMOZARA';
-      if(s.includes('CORONA')) return 'CORONA';
-      if(s.includes('CENTRAL') || s.includes('ZARAGOZA') || s.includes('OTROS')) return 'CENTRAL';
-      return s;
-    }
-
-    function getCentersForMonth(mk){
-      const src = state?.centersByMonth?.[mk] || {};
-      const out = {};
-      CENTER_OPTIONS.forEach(c => out[c] = {});
-      Object.keys(src).forEach(k => {
-        const cid = canonicalCenterId(k);
-        if(!CENTER_OPTIONS.includes(cid)) return;
-        const cur = src[k] || {};
-        const prev = out[cid] || {};
-        // suma real/budget/projection para mapear ZARAGOZA+OTROS a CENTRAL
-        const add = (a,b) => ((a ?? 0) + (b ?? 0));
-        out[cid] = {
-          ...prev,
-          ...cur,
-          real: add(prev.real, cur.real),
-          budget: add(prev.budget, cur.budget),
-          projection: add(prev.projection, cur.projection),
-          varRealVsBudget: add(prev.varRealVsBudget, cur.varRealVsBudget),
-          varProyVsBudget: add(prev.varProyVsBudget, cur.varProyVsBudget),
-          daysElapsed: cur.daysElapsed ?? prev.daysElapsed ?? null,
-          daysTotal: cur.daysTotal ?? prev.daysTotal ?? null,
-        };
-      });
-      return out;
-    }
-
-    function getMonthLabel(monthKey){
-      // monthKey = YYYY-MM, label comes from state.ui maybe, else fallback.
-      const mo = (monthKey || '').split('-')[1];
-      const m = mo ? parseInt(mo,10)-1 : 0;
-      return MONTH_ES[Math.max(0, Math.min(11, m))] + ' (CM)';
-    }
-
-    function renderExecutive(){
-      const mk = currentMonthKey;
-      if(!state || !state.totalsByMonth || !state.totalsByMonth[mk]) return;
-      const tTotal = state.totalsByMonth[mk];
-      const centersNorm = getCentersForMonth(mk);
-      const tCenter = currentCenterId ? (centersNorm?.[currentCenterId] || null) : null;
-      const t = tCenter || tTotal;
-
-      const scope = currentCenterId ? ` · ${currentCenterId}` : '';
-      setText('exec-month-label', (state.ui?.monthLabels?.[mk] || getMonthLabel(mk)) + scope);
-      setText('kpi-real', fmtEur(t.real));
-      setText('kpi-proy', fmtEur(t.projection));
-      setText('kpi-budget', fmtEur(t.budget));
-      setText('kpi-pct', (t.pctProyBudget ?? null) !== null ? fmtPct(t.pctProyBudget) : '—');
-      setText('kpi-pace', fmtEur(t.pace));
-      setText('kpi-yoy-real', t.yoyRealPct != null ? fmtPct(t.yoyRealPct) : '—');
-      setText('kpi-yoy-proy', t.yoyProyPct != null ? fmtPct(t.yoyProyPct) : '—');
-
-      setText('days-elapsed', t.daysElapsed != null ? String(t.daysElapsed) : '—');
-      setText('days-total', t.daysTotal != null ? String(t.daysTotal) : '—');
-      setText('kpi-days-mini', `Días: ${t.daysElapsed ?? '—'} / ${t.daysTotal ?? '—'}`);
-      setText('var-real', fmtEur(t.varRealVsBudget));
-      setText('var-proy', fmtEur(t.varProyVsBudget));
-
-      const tbody = document.getElementById('tbody-centers');
-      tbody.innerHTML = '';
-      const centers = centersNorm;
-      const totalRealForShare = tTotal.real ?? 0;
-      const centerIds = CENTER_OPTIONS.slice();
-      centerIds.forEach(cid => {
-        const c = centers[cid] || {};
-        const share = (totalRealForShare && c.real != null) ? (c.real / totalRealForShare * 100) : null;
-        const tr = document.createElement('tr');
-        const yoyo = c.yoyRealPct != null ? fmtPct(c.yoyRealPct) : '—';
-        const pct = c.pctProyBudget != null ? fmtPct(c.pctProyBudget) : '—';
-        const shareStr = share != null ? share.toFixed(1) + '%' : '—';
-
-        tr.innerHTML = `
-          <td data-label="Centro">
-            <button class="navbtn" style="cursor:pointer; padding:6px 12px;" onclick="openCenter('${cid}')">${cid}</button>
-          </td>
-          <td data-label="Real">${fmtEur(c.real)}</td>
-          <td data-label="Proy.">${fmtEur(c.projection)}</td>
-          <td data-label="Pres.">${fmtEur(c.budget)}</td>
-          <td data-label="%">${pct}</td>
-          <td data-label="YoY">${yoyo}</td>
-          <td data-label="Cuota Europa">${shareStr}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      renderHistoryAnnual();
-      renderEvolutionChart();
-      renderRollingAndYTD();
-    }
-
-    function renderHistoryAnnual(){
-      const tbody = document.getElementById('tbody-history');
-      if(!tbody) return;
-      tbody.innerHTML = '';
-      const histPill = document.getElementById('history-pill');
-      const hist = currentCenterId
-        ? (state?.historyByCenterAnnual?.[currentCenterId] || {})
-        : (state?.historyAnnual || {});
-      if(histPill) histPill.textContent = currentCenterId || 'TODO';
-      const keys = Object.keys(hist).sort();
-      if(!keys.length){
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="3" class="muted">— Sin histórico anual</td>';
-        tbody.appendChild(tr);
-        return;
+function renderEvoChart(){
+  if(!D)return;
+  const year=parseInt(selVal('sr-year')||new Date().getFullYear());
+  const prev=year-1;
+  const d26=getMonthly(year);
+  const d25=getMonthly(prev);
+  const real26=buildMonthArr(d26,'real');
+  const bud26=buildMonthArr(d26,'budget');
+  const real25=buildMonthArr(d25,'real');
+  // Fill budget gaps
+  const budLine=bud26.map(v=>v);
+  document.getElementById('leg-real').textContent=`Real ${year}`;
+  document.getElementById('leg-prev').textContent=`Real ${prev}`;
+  document.getElementById('evo-sub').textContent=`Real y presupuesto ${year} vs. ${prev}`;
+  const ctx=document.getElementById('chart-evo');
+  if(!ctx)return;
+  if(chartEvo)chartEvo.destroy();
+  chartEvo=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:MS,
+      datasets:[
+        {label:`Real ${year}`,data:real26,backgroundColor:'#185fa5',borderRadius:4,order:2,type:'bar'},
+        {label:`Real ${prev}`,data:real25,backgroundColor:'rgba(160,180,205,0.65)',borderRadius:4,order:3,type:'bar'},
+        {label:'Presupuesto',data:budLine,type:'line',borderColor:'#e8531a',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#e8531a',tension:.3,order:1,spanGaps:true}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{grid:{color:'#f1f5f9'},ticks:{callback:v=>v+'k',font:{size:11}}},
+        x:{grid:{display:false},ticks:{font:{size:11},autoSkip:false,maxRotation:0}}
       }
-      keys.forEach(yk => {
-        const h = hist[yk] || {};
-        const total = h.total;
-        const yoy = h.yoyPct;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td data-label="Año">${yk}</td>
-          <td data-label="Total anual"><b>${fmtEur(total)}</b></td>
-          <td data-label="YoY">${yoy != null ? fmtPct(yoy) : '—'}</td>
-        `;
-        tbody.appendChild(tr);
-      });
     }
+  });
+}
 
-    function getSortedMonthKeys(){
-      const keys = getMonthKeys();
-      return keys;
-    }
+// ── Rolling 12m ─────────────────────────────────────────────
+function findRollingVal(rolling,year,month){
+  const label=`${year}-${String(month).padStart(2,'0')}`;
+  const alt1=`${MS[month-1]}-${String(year).slice(-2)}`;
+  for(const r of rolling){
+    const l=gv(r,'label','month','mes','periodo')||'';
+    if(l===label||l===alt1)return gv(r,'value','valor','rolling','acumulado')||0;
+  }
+  return null;
+}
 
-    function buildTotalsForEvolution(){
-      const mk = currentMonthKey;
-      const keys = getSortedMonthKeys().filter(k => k.startsWith('2026-'));
-      const slice = keys.length ? keys : getSortedMonthKeys();
-      const labels = slice.map(k => state.ui?.monthLabels?.[k] || getMonthLabel(k));
-      const reals = slice.map(k => state.totalsByMonth?.[k]?.real ?? null);
-      const budgets = slice.map(k => state.totalsByMonth?.[k]?.budget ?? null);
-      const proys = slice.map(k => {
-        if(k === mk) return state.totalsByMonth?.[k]?.projection ?? null;
-        return null;
-      });
-      return {labels, reals, budgets, proys};
-    }
+function renderRolling(){
+  if(!D)return;
+  const rolling=getRolling();
+  const monthSel=selVal('sr-month');
+  const year=parseInt(selVal('sr-year')||new Date().getFullYear());
+  const cm=getComercialMonth();
+  let curYear=year,curMonth;
+  if(monthSel==='acumulado'){curYear=cm.year;curMonth=cm.month}
+  else{curMonth=parseInt(monthSel)}
+  const prevYear=curYear-1;
+  const curVal=findRollingVal(rolling,curYear,curMonth);
+  const prevVal=findRollingVal(rolling,prevYear,curMonth);
+  document.getElementById('roll-lbl-cur').textContent=`Rolling ${MS[curMonth-1]}-${curYear}`;
+  document.getElementById('roll-num-cur').textContent=curVal!=null?fmtE(curVal):'—';
+  document.getElementById('roll-lbl-prev').textContent=`Rolling ${MS[curMonth-1]}-${prevYear}`;
+  document.getElementById('roll-num-prev').textContent=prevVal!=null?fmtE(prevVal):'—';
+  const dEl=document.getElementById('roll-delta');
+  if(curVal!=null&&prevVal!=null&&prevVal!==0){
+    const delta=curVal-prevVal;
+    const pct=delta/prevVal*100;
+    dEl.className='rdelta '+(delta>=0?'pos':'neg');
+    dEl.textContent=sign(delta)+fmt(delta)+' € ('+sign(pct)+pct.toFixed(1)+'%)';
+  }else{dEl.className='rdelta';dEl.textContent='—'}
+  renderRollingChart(rolling,curYear,curMonth);
+}
 
-    function renderEvolutionChart(){
-      const canvas = document.getElementById('chart-evolution');
-      if(!canvas) return;
-      if(charts['evolution']){ charts['evolution'].destroy(); delete charts['evolution']; }
-      const b = buildTotalsForEvolution();
-      const ctx = canvas.getContext('2d');
-
-      charts['evolution'] = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: b.labels,
-          datasets: [
-            { label: 'Real', data: b.reals, backgroundColor: 'rgba(26,86,232,0.45)', borderRadius: 4, borderWidth: 0 },
-            { label: 'Presupuesto', data: b.budgets, backgroundColor: 'rgba(196,122,10,0.45)', borderRadius: 4, borderWidth: 0 },
-            { label: 'Proyección (mes actual)', data: b.proys, backgroundColor: 'rgba(13,159,110,0.28)', borderRadius: 4, borderWidth: 0 }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: { y: { ticks: { color: '#5c5a55' } } },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (item) => {
-                  const v = item.raw;
-                  return v == null ? '—' : ' ' + (fmtEur(v));
-                }
+function renderRollingChart(rolling,curYear,curMonth){
+  const ctx=document.getElementById('chart-roll');if(!ctx)return;
+  const labels=rolling.map(r=>gv(r,'label','month','mes','periodo')||'');
+  const values=rolling.map(r=>gv(r,'value','valor','rolling','acumulado')||0);
+  // Show only year label at Jan
+  const tickLabels=labels.map((l,i)=>{
+    const parts=l.split('-');
+    if(parts.length===2&&(parts[1]==='01'||parts[1]==='Ene'||l.includes('Ene')))return parts[0];
+    return '';
+  });
+  if(chartRoll)chartRoll.destroy();
+  chartRoll=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        data:values,
+        borderColor:'#185fa5',
+        backgroundColor:'rgba(24,95,165,.08)',
+        fill:true,borderWidth:2,
+        pointRadius:0,pointHoverRadius:5,
+        pointHoverBackgroundColor:'#185fa5',
+        tension:.4
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title:(items)=>{
+              const l=items[0].label||'';
+              const pts=l.split('-');
+              if(pts.length===2){
+                const m=parseInt(pts[1]);
+                return`Rolling 12m · ${MS[m-1]||pts[1]} ${pts[0]}`;
               }
-            }
+              return`Rolling 12m · ${l}`;
+            },
+            label:(item)=>'  '+fmtE(item.raw)
           }
         }
-      });
-    }
-
-    function parseMonthKey(mk){
-      const [y, m] = mk.split('-').map(x => parseInt(x, 10));
-      return { y, m }; // m 1..12
-    }
-
-    function computeRollingAndYTD(){
-      const keys = getSortedMonthKeys();
-      const mk = currentMonthKey;
-      const idx = keys.indexOf(mk);
-      if(idx < 0) return null;
-
-      const last12 = keys.slice(Math.max(0, idx - 11), idx + 1);
-      // comparativa solicitada: rolling del mismo mes, 12 meses atrás
-      const prevStart = idx - 24;
-      const prev12 = prevStart >= 0 ? keys.slice(prevStart, prevStart + 12) : [];
-      const sum = (arr) => arr.reduce((a,k)=>a + (state.totalsByMonth?.[k]?.real ?? 0), 0);
-      const rolling = sum(last12);
-      const rollingPrev = sum(prev12);
-      const yoyRolling = rollingPrev ? (rolling - rollingPrev) / rollingPrev * 100.0 : null;
-
-      const {y: cmYear, m: cmMonth} = parseMonthKey(mk);
-      const ytdKeys = keys.filter(k => {
-        const {y, m} = parseMonthKey(k);
-        return y === cmYear && m <= cmMonth;
-      });
-      const ytd = ytdKeys.reduce((a,k)=>a + (state.totalsByMonth?.[k]?.real ?? 0), 0);
-
-      const prevYear = cmYear - 1;
-      const ytdPrevKeys = keys.filter(k => {
-        const {y, m} = parseMonthKey(k);
-        return y === prevYear && m <= cmMonth;
-      });
-      const ytdPrev = ytdPrevKeys.reduce((a,k)=>a + (state.totalsByMonth?.[k]?.real ?? 0), 0);
-      const yoyYTD = ytdPrev ? (ytd - ytdPrev) / ytdPrev * 100.0 : null;
-
-      return { rolling, yoyRolling, ytd, yoyYTD };
-    }
-
-    function renderRollingAndYTD(){
-      const r = computeRollingAndYTD();
-      if(!r){
-        setText('kpi-rolling', '—');
-        setText('kpi-rolling-yoy', '—');
-        setText('kpi-ytd', '—');
-        setText('kpi-ytd-yoy', '—');
-        return;
-      }
-      setText('kpi-rolling', fmtEur(r.rolling));
-      setText('kpi-rolling-yoy', r.yoyRolling != null ? fmtPct(r.yoyRolling) : '—');
-      setText('kpi-ytd', fmtEur(r.ytd));
-      setText('kpi-ytd-yoy', r.yoyYTD != null ? fmtPct(r.yoyYTD) : '—');
-
-      const canvas = document.getElementById('chart-rolling');
-      if(!canvas) return;
-      if(charts['rolling']){ charts['rolling'].destroy(); delete charts['rolling']; }
-
-      const keys = getSortedMonthKeys();
-      const mk = currentMonthKey;
-      const idx = keys.indexOf(mk);
-      const slice = keys.slice(Math.max(0, idx - 11), idx + 1);
-      const labels = slice.map(k => state.ui?.monthLabels?.[k] || getMonthLabel(k));
-      const values = slice.map(k => state.totalsByMonth?.[k]?.real ?? 0);
-
-      charts['rolling'] = new Chart(canvas.getContext('2d'), {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            { label: 'Real mensual (últimos 12)', data: values, borderColor: '#1a56e8', borderWidth: 2, pointRadius: 2, tension: 0.25 }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display:false } },
-          scales: { y: { ticks: { color: '#5c5a55' } } }
+      },
+      scales:{
+        y:{display:false},
+        x:{
+          display:true,
+          ticks:{font:{size:10},maxRotation:0,autoSkip:false,callback:(v,i)=>tickLabels[i]||''},
+          grid:{display:false}
         }
-      });
-    }
-
-    function renderCenter(){
-      const mk = currentMonthKey;
-      const centers = getCentersForMonth(mk);
-      const c = centers[currentCenterId] || {};
-
-      setText('center-pill', currentCenterId);
-      setText('c-real', fmtEur(c.real));
-      setText('c-proy', fmtEur(c.projection));
-      setText('c-budget', fmtEur(c.budget));
-      setText('c-pct', c.pctProyBudget != null ? fmtPct(c.pctProyBudget) : '—');
-
-      const tbody = document.getElementById('tbody-vendors');
-      tbody.innerHTML = '';
-      const vendorsByMonth = state.vendorsByMonth?.[mk] || {};
-      const vendorIds = Object.keys(vendorsByMonth).filter(vid => {
-        const vc = canonicalCenterId(vendorsByMonth[vid]?.centerId);
-        return currentCenterId ? vc === currentCenterId : true;
-      });
-      vendorIds.sort().forEach(vid => {
-        const v = vendorsByMonth[vid];
-        const cuota = c.real ? (v.real / c.real * 100) : null;
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td data-label="Vendedor"><span class="pill blue">${v.vendorName || vid}</span></td>
-          <td data-label="Real">${fmtEur(v.real)}</td>
-          <td data-label="Proy.">${fmtEur(v.projection)}</td>
-          <td data-label="YoY">${v.yoyRealPct != null ? fmtPct(v.yoyRealPct) : '—'}</td>
-          <td data-label="Cuota centro">${cuota != null ? cuota.toFixed(1)+'%' : '—'}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-      if(!vendorIds.length){
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="5" data-label="Sin datos" class="muted">— No hay desglose por vendedor en data.json para este periodo.</td>`;
-        tbody.appendChild(tr);
       }
     }
+  });
+}
 
-    function openCenter(centerId){
-      currentCenterId = centerId;
-      const centerSel = document.getElementById('sel-center');
-      if(centerSel) centerSel.value = centerId;
-      setActiveTab('vendors');
-      renderCenter();
+// ── Centros ─────────────────────────────────────────────────
+function renderCentros(){
+  if(!D)return;
+  const grid=document.getElementById('centros-grid');
+  grid.innerHTML='';
+  allExp=false;
+  document.getElementById('btn-exp-all').textContent='Expandir todos ▼';
+  const centers=getCenters();
+  const kpis=D.kpis||{};
+  const byC=kpis.byCenter||kpis.by_center||kpis.centros||{};
+  const vendors=D.vendors||{};
+  centers.forEach(c=>{
+    const kpi=byC[c]||{};
+    const real=gv(kpi,'real','ventas_real')||0;
+    const budget=gv(kpi,'budget','presupuesto')||0;
+    const proj=gv(kpi,'projection','proyeccion')||0;
+    const varProy=gv(kpi,'varProyVsBudget','var_proy_vs_budget')||(proj-budget);
+    const cumpl=budget>0?(proj/budget*100):null;
+    const devClass=varProy>=0?'cv-up':'cv-dn';
+    const devText=(varProy>=0?'+':'')+fmt(varProy)+' €';
+    const cumplClass=cumpl!=null?(cumpl>=100?'cv-up':'cv-dn'):'';
+    const cumplText=cumpl!=null?cumpl.toFixed(1)+' %':'—';
+    const vlist=vendors[c]||vendors[c.toLowerCase()]||[];
+    let vrows='';
+    if(vlist.length){
+      vrows=vlist.map(v=>{
+        const vr=gv(v,'real','ventas_real')||0;
+        const pct=real>0?(vr/real*100).toFixed(1):'—';
+        return`<tr><td>${v.name||v.nombre||'—'}</td><td class="vnum">${fmtE(vr)}</td><td class="vright">${pct} %</td></tr>`;
+      }).join('');
+    }else{
+      vrows=`<tr><td colspan="3" class="empty-msg">Sin desglose disponible</td></tr>`;
     }
-    function goBack(){ setActiveTab('home'); }
+    const div=document.createElement('div');
+    div.className='ccard';
+    div.innerHTML=`
+      <div class="ccard-hdr">
+        <span class="cname">${CLABELS[c]||c}</span>
+        <button class="tbtn" onclick="togDet(this)">Detalle ▼</button>
+      </div>
+      <div class="crows">
+        <div class="crow"><span class="ck">Ventas</span><span class="cv">${fmtE(real)}</span></div>
+        <div class="crow"><span class="ck">Presupuesto</span><span class="cv">${fmtE(budget)}</span></div>
+        <div class="crow"><span class="ck">Proyección</span><span class="cv">${fmtE(proj)}</span></div>
+        <div class="crow"><span class="ck">Desviación</span><span class="cv ${devClass}">${devText}</span></div>
+        <div class="crow"><span class="ck">Cumplimiento</span><span class="cv ${cumplClass}">${cumplText}</span></div>
+        <div class="det-panel" style="display:none">
+          <table class="vtable">
+            <tr><th>Vendedor</th><th style="text-align:right">Real</th><th style="text-align:right">% Centro</th></tr>
+            ${vrows}
+          </table>
+        </div>
+      </div>`;
+    grid.appendChild(div);
+  });
+}
 
-    function setActiveTab(tabId){
-      activeTab = tabId;
-      document.querySelectorAll('.navbtn[id^="tab-"]').forEach(b => b.classList.remove('active'));
-      const btn = document.getElementById(`tab-${tabId}`);
-      if(btn) btn.classList.add('active');
-      document.querySelectorAll('.tab-pane').forEach(el => {
-        const show = el.getAttribute('data-pane') === tabId;
-        el.style.display = show ? '' : 'none';
-      });
-      if(tabId === 'vendors'){
-        document.getElementById('view-centro').style.display = '';
-        renderCenter();
-      }
-      if(tabId === 'history') renderHistoryAnnual();
-      if(tabId === 'home') {
-        renderExecutive();
-      }
-      if(tabId === 'centers') renderExecutive();
+function togDet(btn){
+  const p=btn.closest('.ccard').querySelector('.det-panel');
+  if(p.style.display==='none'){p.style.display='block';btn.textContent='Resumen ▲'}
+  else{p.style.display='none';btn.textContent='Detalle ▼'}
+}
+
+function toggleAll(){
+  allExp=!allExp;
+  document.querySelectorAll('.ccard .det-panel').forEach(p=>p.style.display=allExp?'block':'none');
+  document.querySelectorAll('.ccard .tbtn').forEach(b=>b.textContent=allExp?'Resumen ▲':'Detalle ▼');
+  document.getElementById('btn-exp-all').textContent=allExp?'Colapsar todos ▲':'Expandir todos ▼';
+}
+
+// ── Vendedores ──────────────────────────────────────────────
+function renderVendedores(){
+  if(!D)return;
+  const body=document.getElementById('vend-body');
+  body.innerHTML='';
+  const vendors=D.vendors||{};
+  const ORDER=['CENTRAL','ALCARRAS','ALMOZARA','CORONA'];
+  const ordered=[...ORDER.filter(c=>vendors[c]),...Object.keys(vendors).filter(c=>!ORDER.includes(c))];
+  if(!ordered.length){body.innerHTML='<div class="empty-msg">Sin datos de vendedores disponibles</div>';return}
+  ordered.forEach(c=>{
+    const vlist=vendors[c]||[];
+    let rows='';
+    if(vlist.length){
+      rows=vlist.map(v=>{
+        const r=gv(v,'real','ventas_real')||0;
+        const p=gv(v,'projection','proyeccion')||0;
+        const pct=gv(v,'pctCuota','pct_cuota');
+        const yoy=gv(v,'yoyRealPct','yoy','yoy_real_pct');
+        const yc=yoy!=null?(yoy>=0?'pill-g':'pill-r'):'pill-n';
+        const pc=pct!=null?(pct>=0?'pill-g':'pill-r'):'pill-n';
+        return`<tr>
+          <td>${v.name||v.nombre||'—'}</td>
+          <td class="vnum">${fmtE(r)}</td>
+          <td class="vnum">${fmtE(p)}</td>
+          <td class="vright"><span class="pill ${pc}">${pct!=null?(sign(pct)+pct.toFixed(1)+'%'):'—'}</span></td>
+          <td class="vright"><span class="pill ${yc}">${yoy!=null?(sign(yoy)+yoy.toFixed(1)+'%'):'—'}</span></td>
+        </tr>`;
+      }).join('');
+    }else{
+      rows=`<tr><td colspan="5" class="empty-msg">Sin desglose disponible</td></tr>`;
     }
+    const div=document.createElement('div');div.className='vg';
+    div.innerHTML=`
+      <div class="vg-hdr">${CLABELS[c]||c}</div>
+      <div class="vg-body">
+        <table class="vtable" style="margin:0">
+          <tr>
+            <th>Vendedor</th>
+            <th style="text-align:right">Real mes</th>
+            <th style="text-align:right">Proyección</th>
+            <th style="text-align:right">% Cuota</th>
+            <th style="text-align:right">YoY</th>
+          </tr>
+          ${rows}
+        </table>
+      </div>`;
+    body.appendChild(div);
+  });
+}
 
-    function syncSelects(){
-      const monthSel = document.getElementById('sel-month');
-      const centerSel = document.getElementById('sel-center');
-      const monthKeys = getMonthKeys();
-      monthSel.innerHTML = '';
-      if(!monthKeys.length) monthSel.innerHTML = '<option value="">—</option>';
-      monthKeys.forEach(k => {
-        const opt = document.createElement('option');
-        opt.value = k;
-        opt.textContent = (state.ui?.monthLabels?.[k]) || getMonthLabel(k);
-        monthSel.appendChild(opt);
-      });
+// ── Histórico ───────────────────────────────────────────────
+const HIST_CENTERS=[
+  {key:'TOTAL',label:'Total Europa'},
+  {key:'CENTRAL',label:'Central'},
+  {key:'CORONA',label:'Corona'},
+  {key:'ALMOZARA',label:'Almozara'},
+  {key:'ALCARRAS',label:'Alcarràs'}
+];
 
-      currentMonthKey = currentMonthKey || monthKeys[monthKeys.length-1] || null;
-      monthSel.value = currentMonthKey || '';
+function renderHistorico(){
+  const tabsEl=document.getElementById('hist-tabs');
+  if(!tabsEl.innerHTML){
+    tabsEl.innerHTML=HIST_CENTERS.map((c,i)=>
+      `<div class="htab ${i===0?'active':''}" onclick="switchHist('${c.key}',this)">${c.label}</div>`
+    ).join('');
+  }
+  renderHistTable(activeHistCenter);
+}
 
-      centerSel.innerHTML = '<option value="">TODO</option>';
-      CENTER_OPTIONS.forEach(cid => {
-        const opt = document.createElement('option');
-        opt.value = cid;
-        opt.textContent = cid;
-        centerSel.appendChild(opt);
-      });
-      centerSel.value = currentCenterId || '';
-    }
+function switchHist(key,el){
+  activeHistCenter=key;
+  document.querySelectorAll('.htab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderHistTable(key);
+}
 
-    function parseQuery(){
-      const q = new URLSearchParams(window.location.search);
-      const view = q.get('view');
-      const center = q.get('center');
-      const month = q.get('month');
-      return {view, center, month};
-    }
+function renderHistTable(ckey){
+  if(!D)return;
+  const hist=D.historical||D.historico||{};
+  const cdata=hist[ckey]||hist[ckey.toLowerCase()]||{};
+  const table=document.getElementById('hist-table');
+  const nota=document.getElementById('hist-nota');
+  const years=Object.keys(cdata).map(Number).filter(Boolean).sort((a,b)=>b-a);
+  if(!years.length){
+    table.innerHTML=`<tr><td colspan="15" class="empty-msg" style="padding:20px">Sin datos históricos para este centro</td></tr>`;
+    nota.textContent='';return;
+  }
+  const cy=new Date().getFullYear();
+  let html=`<tr><th>Año</th>${MS.map(m=>`<th>${m}</th>`).join('')}<th>Total</th><th>YoY</th></tr>`;
+  let prevTotal=null;
+  years.forEach(y=>{
+    const row=cdata[y]||cdata[String(y)]||{};
+    let mv;
+    if(Array.isArray(row)){mv=row}
+    else{mv=Array.from({length:12},(_,i)=>{const k=String(i+1).padStart(2,'0');return row[k]||row[String(i+1)]||null})}
+    const total=mv.reduce((s,v)=>s+(v||0),0);
+    const yoy=prevTotal!=null&&prevTotal>0?((total-prevTotal)/prevTotal*100):null;
+    const yc=yoy!=null?(yoy>=0?'yp':'yn'):'';
+    const yt=yoy!=null?(sign(yoy)+yoy.toFixed(1)+'%'):'—';
+    const isCur=y===cy;
+    html+=`<tr class="${isCur?'cy':''}">
+      <td>${y}</td>
+      ${mv.map((v,i)=>{
+        const d=v!=null?(v>=1000?Math.round(v/1000)+'k':fmt(v)):'—';
+        const isThisMonth=isCur&&(i+1)===new Date().getMonth()+1;
+        return`<td>${d}${isThisMonth?'*':''}</td>`;
+      }).join('')}
+      <td class="tot">${total>=1000?Math.round(total/1000)+'k':fmt(total)}</td>
+      <td class="${yc}">${yt}</td>
+    </tr>`;
+    prevTotal=total;
+  });
+  table.innerHTML=html;
+  nota.textContent='* Mes en curso = proyección de cierre. Valores en miles de euros (k).';
+}
 
-    async function loadData(){
-      document.getElementById('load-status').textContent = 'Cargando…';
-      try{
-        const resp = await fetch('./data.json?_=' + Date.now(), {cache:'no-store'});
-        if(!resp.ok) throw new Error('HTTP '+resp.status);
-        state = await resp.json();
-        document.getElementById('load-status').textContent = 'Datos OK';
-      } catch(e){
-        document.getElementById('load-status').textContent = 'Sin data.json (fallback)';
-        // Fallback mínima
-        state = {
-          meta: {},
-          ui: { monthLabels: {} },
-          totalsByMonth: {},
-          centersByMonth: {},
-          vendorsByMonth: {},
-          historyAnnual: {}
-        };
-      }
-      const lastLoad = state.meta?.lastLoadDate ? state.meta.lastLoadDate : '—';
-      const lastRun = state.meta?.lastRunTs ? new Date(state.meta.lastRunTs).toLocaleString('es-ES') : '—';
-      setText('header-lastLoad', lastLoad);
-      setText('header-lastRun', 'Última sincronización: ' + lastRun);
+// ── Init ────────────────────────────────────────────────────
+async function init(){
+  try{localStorage.removeItem('hipoDM')}catch(e){}
+  try{
+    const res=await fetch('data.json?t='+Date.now());
+    D=await res.json();
+  }catch(e){
+    console.error('Error loading data.json:',e);
+    document.getElementById('badge-date').textContent='Error al cargar datos';
+    document.getElementById('loading').classList.add('hide');
+    return;
+  }
+  renderBadge();
+  initSelectors();
+  renderKPIs();
+  renderEvoChart();
+  renderRolling();
+  setTimeout(()=>document.getElementById('loading').classList.add('hide'),300);
+}
 
-      const {view, center, month} = parseQuery();
-      currentMonthKey = month || currentMonthKey;
-      syncSelects();
-
-      if(center) currentCenterId = center;
-      renderExecutive();
-      setActiveTab(view || 'home');
-    }
-
-    function attachEvents(){
-      document.getElementById('tab-home').addEventListener('click', ()=>setActiveTab('home'));
-      document.getElementById('tab-centers').addEventListener('click', ()=>setActiveTab('centers'));
-      document.getElementById('tab-history').addEventListener('click', ()=>setActiveTab('history'));
-      document.getElementById('tab-vendors').addEventListener('click', ()=>setActiveTab('vendors'));
-      document.getElementById('sel-month').addEventListener('change', (e) => {
-        currentMonthKey = e.target.value;
-        if(activeTab === 'vendors') renderCenter();
-        else renderExecutive();
-      });
-      document.getElementById('sel-center').addEventListener('change', (e) => {
-        const cid = e.target.value;
-        currentCenterId = cid || null;
-        if(activeTab === 'vendors') renderCenter();
-        else renderExecutive();
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      attachEvents();
-      await loadData();
-    });
-  </script>
+document.addEventListener('DOMContentLoaded',init);
+</script>
 </body>
 </html>
-
