@@ -1,130 +1,932 @@
 {
   "meta": {
-    "lastLoadDate": "2026-04-01",
-    "lastRunTs": "2026-04-02T08:28:59.693673+00:00",
-    "notes": "Fallback. En producción, el extractor actualizará este archivo vía GitHub Actions."
+    "lastLoadDate": "2026-03-30",
+    "lastRunTs": "2026-04-02T08:23:58",
+    "comercialMonth": "2026-04",
+    "comercialMonthLabel": "Abril 2026"
   },
-  "ui": {
-    "monthLabels": {
-      "2026-03": "MAR-26"
-    }
-  },
-  "totalsByMonth": {
-    "2026-03": {
-      "real": 304679.91,
-      "budget": 427000,
-      "projection": 418934.88,
-      "pctProyBudget": 98.11121223653394,
-      "pace": 19042.494375,
-      "yoyRealPct": -10.254170937754063,
-      "yoyProyPct": -10.254170937754061,
-      "varRealVsBudget": -122320.09,
-      "varProyVsBudget": -8065.12,
-      "daysElapsed": 16,
-      "daysTotal": 22
-    }
-  },
-  "centersByMonth": {
-    "2026-03": {
-      "ZARAGOZA": {
-        "real": 107997.28,
-        "budget": 131957,
-        "projection": 148496.26,
-        "pctProyBudget": 112.53382541282389,
-        "pace": 6749.83,
-        "yoyRealPct": 7.1800748016672005,
-        "yoyProyPct": 7.180074801667209,
-        "varRealVsBudget": -23959.72,
-        "varProyVsBudget": 16539.26,
-        "daysElapsed": 16,
-        "daysTotal": 22
+  "kpis": {
+    "global": {
+      "real": 39952.06,
+      "budget": 417000,
+      "projection": 239712.36,
+      "pace": 9988.02,
+      "varProyVsBudget": -177287.64,
+      "pctProyBudget": 57.5,
+      "daysElapsed": 4,
+      "daysTotal": 24
+    },
+    "byCenter": {
+      "CENTRAL": {
+        "real": 13166.12,
+        "budget": 129000,
+        "projection": 78996.72,
+        "pace": 3291.53,
+        "varProyVsBudget": -50003.28,
+        "cumplPct": 61.2,
+        "daysElapsed": 4,
+        "daysTotal": 24
       },
       "ALCARRAS": {
-        "real": 141522.28,
-        "budget": 179116,
-        "projection": 194593.14,
-        "pctProyBudget": 108.64084448067175,
-        "pace": 8845.1425,
-        "yoyRealPct": -5.358424449125623,
-        "yoyProyPct": -5.35842444912561,
-        "varRealVsBudget": -37593.72,
-        "varProyVsBudget": 15477.14,
-        "daysElapsed": 16,
-        "daysTotal": 22
-      },
-      "OTROS": {
-        "real": 55160.35,
-        "budget": 115927,
-        "projection": 75845.48,
-        "pctProyBudget": 65.42520832075354,
-        "pace": 3447.521875,
-        "yoyRealPct": -38.1572571594629,
-        "yoyProyPct": -38.1572571594629,
-        "varRealVsBudget": -60766.65,
-        "varProyVsBudget": -40081.52,
-        "daysElapsed": 16,
-        "daysTotal": 22
-      }
-    },
-    "2026-04": {
-      "CENTRAL": {
-        "real": null,
-        "budget": null,
-        "projection": null,
-        "pctProyBudget": null,
-        "pace": null,
-        "yoyRealPct": null,
-        "yoyProyPct": null,
-        "varRealVsBudget": null,
-        "varProyVsBudget": null,
+        "real": 22380.15,
+        "budget": 179000,
+        "projection": 134280.9,
+        "pace": 5595.04,
+        "varProyVsBudget": -44719.1,
+        "cumplPct": 75.0,
         "daysElapsed": 4,
-        "daysTotal": 26
-      },
-      "CORONA": {
-        "real": null,
-        "budget": null,
-        "projection": null,
-        "pctProyBudget": null,
-        "pace": null,
-        "yoyRealPct": null,
-        "yoyProyPct": null,
-        "varRealVsBudget": null,
-        "varProyVsBudget": null,
-        "daysElapsed": 4,
-        "daysTotal": 26
+        "daysTotal": 24
       },
       "ALMOZARA": {
-        "real": null,
-        "budget": null,
-        "projection": null,
-        "pctProyBudget": null,
-        "pace": null,
-        "yoyRealPct": null,
-        "yoyProyPct": null,
-        "varRealVsBudget": null,
-        "varProyVsBudget": null,
+        "real": 485.12,
+        "budget": 29000,
+        "projection": 2910.72,
+        "pace": 121.28,
+        "varProyVsBudget": -26089.28,
+        "cumplPct": 10.0,
         "daysElapsed": 4,
-        "daysTotal": 26
+        "daysTotal": 24
       },
-      "ALCARRAS": {
-        "real": null,
-        "budget": null,
-        "projection": null,
-        "pctProyBudget": null,
-        "pace": null,
-        "yoyRealPct": null,
-        "yoyProyPct": null,
-        "varRealVsBudget": null,
-        "varProyVsBudget": null,
+      "CORONA": {
+        "real": 3920.67,
+        "budget": 80000,
+        "projection": 23524.02,
+        "pace": 980.17,
+        "varProyVsBudget": -56475.98,
+        "cumplPct": 29.4,
         "daysElapsed": 4,
-        "daysTotal": 26
+        "daysTotal": 24
       }
     }
   },
-  "vendorsByMonth": {
-    "2026-03": {},
-    "2026-04": {}
+  "series": {
+    "monthly": {
+      "2026": [
+        {
+          "month": 1,
+          "real": 362267,
+          "budget": 437000,
+          "projection": 362267,
+          "byCenter": {
+            "CENTRAL": {
+              "real": 104424,
+              "budget": 139000
+            },
+            "ALCARRAS": {
+              "real": 194066,
+              "budget": 179000
+            },
+            "ALMOZARA": {
+              "real": 23491,
+              "budget": 39000
+            },
+            "CORONA": {
+              "real": 40286,
+              "budget": 80000
+            }
+          }
+        },
+        {
+          "month": 2,
+          "real": 414623,
+          "budget": 445000,
+          "projection": 414623,
+          "byCenter": {
+            "CENTRAL": {
+              "real": 122057,
+              "budget": 129000
+            },
+            "ALCARRAS": {
+              "real": 222208,
+              "budget": 197000
+            },
+            "ALMOZARA": {
+              "real": 31791,
+              "budget": 39000
+            },
+            "CORONA": {
+              "real": 38567,
+              "budget": 80000
+            }
+          }
+        },
+        {
+          "month": 3,
+          "real": 304680,
+          "budget": 427000,
+          "projection": 304680,
+          "byCenter": {
+            "CENTRAL": {
+              "real": 107997,
+              "budget": 129000
+            },
+            "ALCARRAS": {
+              "real": 141522,
+              "budget": 179000
+            },
+            "ALMOZARA": {
+              "real": 20950,
+              "budget": 39000
+            },
+            "CORONA": {
+              "real": 34211,
+              "budget": 80000
+            }
+          }
+        },
+        {
+          "month": 4,
+          "real": 39952.06,
+          "budget": 417000,
+          "projection": 239712.36,
+          "byCenter": {
+            "CENTRAL": {
+              "real": 13166.12,
+              "budget": 129000
+            },
+            "ALCARRAS": {
+              "real": 22380.15,
+              "budget": 179000
+            },
+            "ALMOZARA": {
+              "real": 485.12,
+              "budget": 29000
+            },
+            "CORONA": {
+              "real": 3920.67,
+              "budget": 80000
+            }
+          }
+        },
+        {
+          "month": 5,
+          "real": null,
+          "budget": 437000,
+          "projection": null
+        },
+        {
+          "month": 6,
+          "real": null,
+          "budget": 407000,
+          "projection": null
+        },
+        {
+          "month": 7,
+          "real": null,
+          "budget": 407000,
+          "projection": null
+        },
+        {
+          "month": 8,
+          "real": null,
+          "budget": 397000,
+          "projection": null
+        },
+        {
+          "month": 9,
+          "real": null,
+          "budget": 467000,
+          "projection": null
+        },
+        {
+          "month": 10,
+          "real": null,
+          "budget": 467000,
+          "projection": null
+        },
+        {
+          "month": 11,
+          "real": null,
+          "budget": 447000,
+          "projection": null
+        },
+        {
+          "month": 12,
+          "real": null,
+          "budget": 387000,
+          "projection": null
+        }
+      ],
+      "2025": [
+        {
+          "month": 1,
+          "real": 357929,
+          "budget": 0,
+          "projection": 357929
+        },
+        {
+          "month": 2,
+          "real": 392168,
+          "budget": 0,
+          "projection": 392168
+        },
+        {
+          "month": 3,
+          "real": 339492,
+          "budget": 0,
+          "projection": 339492
+        },
+        {
+          "month": 4,
+          "real": 327032,
+          "budget": 0,
+          "projection": 327032
+        },
+        {
+          "month": 5,
+          "real": 346238,
+          "budget": 0,
+          "projection": 346238
+        },
+        {
+          "month": 6,
+          "real": 277375,
+          "budget": 0,
+          "projection": 277375
+        },
+        {
+          "month": 7,
+          "real": 325893,
+          "budget": 0,
+          "projection": 325893
+        },
+        {
+          "month": 8,
+          "real": 280460,
+          "budget": 0,
+          "projection": 280460
+        },
+        {
+          "month": 9,
+          "real": 412334,
+          "budget": 0,
+          "projection": 412334
+        },
+        {
+          "month": 10,
+          "real": 385531,
+          "budget": 0,
+          "projection": 385531
+        },
+        {
+          "month": 11,
+          "real": 323348,
+          "budget": 0,
+          "projection": 323348
+        },
+        {
+          "month": 12,
+          "real": 237172,
+          "budget": 0,
+          "projection": 237172
+        }
+      ],
+      "2024": [
+        {
+          "month": 1,
+          "real": 265515,
+          "budget": 0,
+          "projection": 265515
+        },
+        {
+          "month": 2,
+          "real": 350421,
+          "budget": 0,
+          "projection": 350421
+        },
+        {
+          "month": 3,
+          "real": 286508,
+          "budget": 0,
+          "projection": 286508
+        },
+        {
+          "month": 4,
+          "real": 252700,
+          "budget": 0,
+          "projection": 252700
+        },
+        {
+          "month": 5,
+          "real": 315800,
+          "budget": 0,
+          "projection": 315800
+        },
+        {
+          "month": 6,
+          "real": 246211,
+          "budget": 0,
+          "projection": 246211
+        },
+        {
+          "month": 7,
+          "real": 285907,
+          "budget": 0,
+          "projection": 285907
+        },
+        {
+          "month": 8,
+          "real": 245262,
+          "budget": 0,
+          "projection": 245262
+        },
+        {
+          "month": 9,
+          "real": 299321,
+          "budget": 0,
+          "projection": 299321
+        },
+        {
+          "month": 10,
+          "real": 305765,
+          "budget": 0,
+          "projection": 305765
+        },
+        {
+          "month": 11,
+          "real": 391524,
+          "budget": 0,
+          "projection": 391524
+        },
+        {
+          "month": 12,
+          "real": 256428,
+          "budget": 0,
+          "projection": 256428
+        }
+      ],
+      "2023": [
+        {
+          "month": 1,
+          "real": 202945,
+          "budget": 0,
+          "projection": 202945
+        },
+        {
+          "month": 2,
+          "real": 297824,
+          "budget": 0,
+          "projection": 297824
+        },
+        {
+          "month": 3,
+          "real": 216672,
+          "budget": 0,
+          "projection": 216672
+        },
+        {
+          "month": 4,
+          "real": 242818,
+          "budget": 0,
+          "projection": 242818
+        },
+        {
+          "month": 5,
+          "real": 274082,
+          "budget": 0,
+          "projection": 274082
+        },
+        {
+          "month": 6,
+          "real": 238758,
+          "budget": 0,
+          "projection": 238758
+        },
+        {
+          "month": 7,
+          "real": 251016,
+          "budget": 0,
+          "projection": 251016
+        },
+        {
+          "month": 8,
+          "real": 217911,
+          "budget": 0,
+          "projection": 217911
+        },
+        {
+          "month": 9,
+          "real": 290767,
+          "budget": 0,
+          "projection": 290767
+        },
+        {
+          "month": 10,
+          "real": 294400,
+          "budget": 0,
+          "projection": 294400
+        },
+        {
+          "month": 11,
+          "real": 329986,
+          "budget": 0,
+          "projection": 329986
+        },
+        {
+          "month": 12,
+          "real": 202116,
+          "budget": 0,
+          "projection": 202116
+        }
+      ]
+    },
+    "rolling": [
+      {
+        "label": "2023-12",
+        "value": 3059295
+      },
+      {
+        "label": "2024-01",
+        "value": 3121865
+      },
+      {
+        "label": "2024-02",
+        "value": 3174462
+      },
+      {
+        "label": "2024-03",
+        "value": 3244298
+      },
+      {
+        "label": "2024-04",
+        "value": 3254180
+      },
+      {
+        "label": "2024-05",
+        "value": 3295898
+      },
+      {
+        "label": "2024-06",
+        "value": 3303351
+      },
+      {
+        "label": "2024-07",
+        "value": 3338242
+      },
+      {
+        "label": "2024-08",
+        "value": 3365593
+      },
+      {
+        "label": "2024-09",
+        "value": 3374147
+      },
+      {
+        "label": "2024-10",
+        "value": 3385512
+      },
+      {
+        "label": "2024-11",
+        "value": 3447050
+      },
+      {
+        "label": "2024-12",
+        "value": 3501362
+      },
+      {
+        "label": "2025-01",
+        "value": 3593776
+      },
+      {
+        "label": "2025-02",
+        "value": 3635523
+      },
+      {
+        "label": "2025-03",
+        "value": 3688507
+      },
+      {
+        "label": "2025-04",
+        "value": 3762839
+      },
+      {
+        "label": "2025-05",
+        "value": 3793277
+      },
+      {
+        "label": "2025-06",
+        "value": 3824441
+      },
+      {
+        "label": "2025-07",
+        "value": 3864427
+      },
+      {
+        "label": "2025-08",
+        "value": 3899625
+      },
+      {
+        "label": "2025-09",
+        "value": 4012638
+      },
+      {
+        "label": "2025-10",
+        "value": 4092404
+      },
+      {
+        "label": "2025-11",
+        "value": 4024228
+      },
+      {
+        "label": "2025-12",
+        "value": 4004972
+      },
+      {
+        "label": "2026-01",
+        "value": 4009310
+      },
+      {
+        "label": "2026-02",
+        "value": 4031765
+      },
+      {
+        "label": "2026-03",
+        "value": 3996953
+      },
+      {
+        "label": "2026-04",
+        "value": 3709873
+      }
+    ]
   },
-  "historyAnnual": {},
-  "historyByCenterAnnual": {}
+  "vendors": {
+    "CENTRAL": [
+      {
+        "name": "J.J. IBAÑEZ",
+        "real": 6878.51
+      },
+      {
+        "name": "MARIA JOSE",
+        "real": 4552.07
+      },
+      {
+        "name": "CECILIA MEZA",
+        "real": 1735.54
+      }
+    ],
+    "ALCARRAS": [
+      {
+        "name": "ALBERT",
+        "real": 9621.49
+      },
+      {
+        "name": "MARIA JESUS BENSENY",
+        "real": 5802.47
+      },
+      {
+        "name": "ENRIC CALVET",
+        "real": 5549.59
+      },
+      {
+        "name": "GLORIA LOPEZ",
+        "real": 1406.6
+      }
+    ],
+    "ALMOZARA": [
+      {
+        "name": "BLANCA",
+        "real": 485.12
+      }
+    ],
+    "CORONA": [
+      {
+        "name": "SARA",
+        "real": 3920.67
+      }
+    ]
+  },
+  "historical": {
+    "TOTAL": {
+      "2021": [
+        201000,
+        117000,
+        251000,
+        250000,
+        243000,
+        287000,
+        254000,
+        266000,
+        276000,
+        304000,
+        285000,
+        205000
+      ],
+      "2022": [
+        267021,
+        225340,
+        239287,
+        276818,
+        245032,
+        240474,
+        209842,
+        292090,
+        254135,
+        283067,
+        285358,
+        205412
+      ],
+      "2023": [
+        202945,
+        297824,
+        216672,
+        242818,
+        274082,
+        238758,
+        251016,
+        217911,
+        290767,
+        294400,
+        329986,
+        202116
+      ],
+      "2024": [
+        265515,
+        350421,
+        286508,
+        252700,
+        315800,
+        246211,
+        285907,
+        245262,
+        299321,
+        305765,
+        391524,
+        256428
+      ],
+      "2025": [
+        357929,
+        392168,
+        339492,
+        322682,
+        346288,
+        278616,
+        326300,
+        280499,
+        411993,
+        385315,
+        323646,
+        248123
+      ],
+      "2026": [
+        362267,
+        414623,
+        304680,
+        39952,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "CENTRAL": {
+      "2021": [
+        127000,
+        94000,
+        117000,
+        109000,
+        85000,
+        129000,
+        104000,
+        118000,
+        105000,
+        109000,
+        156000,
+        79000
+      ],
+      "2022": [
+        132000,
+        102000,
+        110000,
+        109000,
+        99000,
+        96000,
+        100000,
+        117000,
+        103000,
+        131000,
+        156000,
+        79000
+      ],
+      "2023": [
+        88000,
+        123000,
+        113000,
+        127000,
+        119000,
+        80000,
+        76000,
+        95000,
+        103000,
+        106000,
+        132000,
+        87000
+      ],
+      "2024": [
+        101506,
+        134080,
+        123046,
+        101291,
+        129094,
+        68234,
+        84369,
+        86137,
+        101560,
+        89058,
+        146000,
+        80000
+      ],
+      "2025": [
+        134241,
+        90429,
+        100762,
+        101291,
+        91000,
+        59000,
+        87000,
+        85000,
+        111000,
+        108000,
+        109000,
+        80000
+      ],
+      "2026": [
+        104424,
+        122057,
+        107997,
+        13166,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "ALCARRAS": {
+      "2021": [
+        74000,
+        23000,
+        134000,
+        141000,
+        158000,
+        158000,
+        150000,
+        148000,
+        171000,
+        195000,
+        129000,
+        126000
+      ],
+      "2022": [
+        135134,
+        123538,
+        129766,
+        168079,
+        145953,
+        144920,
+        109836,
+        174999,
+        151372,
+        151996,
+        128876,
+        126322
+      ],
+      "2023": [
+        123158,
+        175111,
+        103496,
+        115414,
+        154750,
+        158397,
+        175256,
+        122980,
+        187436,
+        188734,
+        198200,
+        114878
+      ],
+      "2024": [
+        141770,
+        191828,
+        128271,
+        130955,
+        158339,
+        148447,
+        182127,
+        141899,
+        146927,
+        162587,
+        197000,
+        145000
+      ],
+      "2025": [
+        158490,
+        182979,
+        149535,
+        167279,
+        174381,
+        143252,
+        169986,
+        151958,
+        199832,
+        197779,
+        141503,
+        111000
+      ],
+      "2026": [
+        194066,
+        222208,
+        141522,
+        22380,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "ALMOZARA": {
+      "2024": [
+        22239,
+        23363,
+        35191,
+        20000,
+        28000,
+        27000,
+        19000,
+        10000,
+        51000,
+        52000,
+        36000,
+        25000
+      ],
+      "2025": [
+        34694,
+        32289,
+        28364,
+        19000,
+        24000,
+        26000,
+        20000,
+        14000,
+        24000,
+        21000,
+        22000,
+        15000
+      ],
+      "2026": [
+        23491,
+        31791,
+        20950,
+        485,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    "CORONA": {
+      "2025": [
+        30504,
+        86471,
+        60831,
+        39462,
+        56857,
+        49123,
+        48907,
+        29502,
+        77502,
+        58752,
+        50845,
+        31172
+      ],
+      "2026": [
+        40286,
+        38567,
+        34211,
+        3921,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  }
 }
