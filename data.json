@@ -1,7 +1,7 @@
 {
   "meta": {
     "lastLoadDate": "2026-04-01",
-    "lastRunTs": "2026-04-01T19:35:52.833763+00:00",
+    "lastRunTs": "2026-04-02T08:28:59.693673+00:00",
     "notes": "Fallback. En producción, el extractor actualizará este archivo vía GitHub Actions."
   },
   "ui": {
