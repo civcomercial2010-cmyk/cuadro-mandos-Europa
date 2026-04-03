@@ -1,60 +1,60 @@
 {
   "meta": {
-    "lastLoadDate": "2026-03-30",
-    "lastRunTs": "2026-03-30T09:08:01",
+    "lastLoadDate": "2026-04-02",
+    "lastRunTs": "2026-04-03T07:11:49",
     "comercialMonth": "2026-04",
     "comercialMonthLabel": "Abril 2026"
   },
   "kpis": {
     "global": {
-      "real": 39952.06,
+      "real": 85493.43,
       "budget": 417000,
-      "projection": 239712.36,
-      "pace": 9988.01,
-      "varProyVsBudget": -177287.64,
-      "pctProyBudget": 57.5,
-      "daysElapsed": 4,
+      "projection": 341973.72,
+      "pace": 14248.9,
+      "varProyVsBudget": -75026.28,
+      "pctProyBudget": 82.0,
+      "daysElapsed": 6,
       "daysTotal": 24
     },
     "byCenter": {
       "CENTRAL": {
-        "real": 13166.12,
+        "real": 21998.35,
         "budget": 129000,
-        "projection": 78996.72,
-        "pace": 3291.53,
-        "varProyVsBudget": -50003.28,
-        "cumplPct": 61.2,
-        "daysElapsed": 4,
+        "projection": 87993.4,
+        "pace": 3666.39,
+        "varProyVsBudget": -41006.6,
+        "cumplPct": 68.2,
+        "daysElapsed": 6,
         "daysTotal": 24
       },
       "ALCARRAS": {
-        "real": 22380.15,
+        "real": 52717.35,
         "budget": 179000,
-        "projection": 134280.9,
-        "pace": 5595.04,
-        "varProyVsBudget": -44719.1,
-        "cumplPct": 75.0,
-        "daysElapsed": 4,
+        "projection": 210869.4,
+        "pace": 8786.23,
+        "varProyVsBudget": 31869.4,
+        "cumplPct": 117.8,
+        "daysElapsed": 6,
         "daysTotal": 24
       },
       "ALMOZARA": {
-        "real": 485.12,
+        "real": 3382.66,
         "budget": 29000,
-        "projection": 2910.72,
-        "pace": 121.28,
-        "varProyVsBudget": -26089.28,
-        "cumplPct": 10.0,
-        "daysElapsed": 4,
+        "projection": 13530.64,
+        "pace": 563.78,
+        "varProyVsBudget": -15469.36,
+        "cumplPct": 46.7,
+        "daysElapsed": 6,
         "daysTotal": 24
       },
       "CORONA": {
-        "real": 3920.67,
+        "real": 7395.07,
         "budget": 80000,
-        "projection": 23524.02,
-        "pace": 980.17,
-        "varProyVsBudget": -56475.98,
-        "cumplPct": 29.4,
-        "daysElapsed": 4,
+        "projection": 29580.28,
+        "pace": 1232.51,
+        "varProyVsBudget": -50419.72,
+        "cumplPct": 37.0,
+        "daysElapsed": 6,
         "daysTotal": 24
       }
     }
@@ -136,24 +136,24 @@
         },
         {
           "month": 4,
-          "real": 39952.06,
+          "real": 85493.43,
           "budget": 417000,
-          "projection": 239712.36,
+          "projection": 341973.72,
           "byCenter": {
             "CENTRAL": {
-              "real": 13166.12,
+              "real": 21998.35,
               "budget": 129000
             },
             "ALCARRAS": {
-              "real": 22380.15,
+              "real": 52717.35,
               "budget": 179000
             },
             "ALMOZARA": {
-              "real": 485.12,
+              "real": 3382.66,
               "budget": 29000
             },
             "CORONA": {
-              "real": 3920.67,
+              "real": 7395.07,
               "budget": 80000
             }
           }
@@ -211,290 +211,74 @@
         {
           "month": 1,
           "real": 357929,
-          "budget": 437000,
-          "projection": 357929,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 134241,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 158490,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 34694,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 30504,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 357929
         },
         {
           "month": 2,
           "real": 392168,
-          "budget": 445000,
-          "projection": 392168,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 90429,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 182979,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 32289,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 86471,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 392168
         },
         {
           "month": 3,
           "real": 339492,
-          "budget": 427000,
-          "projection": 339492,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 100762,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 149535,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 28364,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 60831,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 339492
         },
         {
           "month": 4,
           "real": 327032,
-          "budget": 417000,
-          "projection": 327032,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 101291,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 167279,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 19000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 39462,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 327032
         },
         {
           "month": 5,
           "real": 346238,
-          "budget": 437000,
-          "projection": 346238,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 91000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 174381,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 24000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 56857,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 346238
         },
         {
           "month": 6,
           "real": 277375,
-          "budget": 407000,
-          "projection": 277375,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 59000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 143252,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 26000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 49123,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 277375
         },
         {
           "month": 7,
           "real": 325893,
-          "budget": 407000,
-          "projection": 325893,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 87000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 169986,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 20000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 48907,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 325893
         },
         {
           "month": 8,
           "real": 280460,
-          "budget": 397000,
-          "projection": 280460,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 85000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 151958,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 14000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 29502,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 280460
         },
         {
           "month": 9,
           "real": 412334,
-          "budget": 467000,
-          "projection": 412334,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 111000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 199832,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 24000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 77502,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 412334
         },
         {
           "month": 10,
           "real": 385531,
-          "budget": 467000,
-          "projection": 385531,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 108000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 197779,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 21000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 58752,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 385531
         },
         {
           "month": 11,
           "real": 323348,
-          "budget": 447000,
-          "projection": 323348,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 109000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 141503,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 22000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 50845,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 323348
         },
         {
           "month": 12,
           "real": 237172,
-          "budget": 387000,
-          "projection": 237172,
-          "byCenter": {
-            "CENTRAL": {
-              "real": 80000,
-              "budget": 0
-            },
-            "ALCARRAS": {
-              "real": 111000,
-              "budget": 0
-            },
-            "ALMOZARA": {
-              "real": 15000,
-              "budget": 0
-            },
-            "CORONA": {
-              "real": 31172,
-              "budget": 0
-            }
-          }
+          "budget": 0,
+          "projection": 237172
         }
       ],
       "2024": [
@@ -648,102 +432,6 @@
     },
     "rolling": [
       {
-        "label": "2021-12",
-        "value": 2939000
-      },
-      {
-        "label": "2022-01",
-        "value": 3005021
-      },
-      {
-        "label": "2022-02",
-        "value": 3113361
-      },
-      {
-        "label": "2022-03",
-        "value": 3101648
-      },
-      {
-        "label": "2022-04",
-        "value": 3128466
-      },
-      {
-        "label": "2022-05",
-        "value": 3130498
-      },
-      {
-        "label": "2022-06",
-        "value": 3083972
-      },
-      {
-        "label": "2022-07",
-        "value": 3039814
-      },
-      {
-        "label": "2022-08",
-        "value": 3065904
-      },
-      {
-        "label": "2022-09",
-        "value": 3044039
-      },
-      {
-        "label": "2022-10",
-        "value": 3023106
-      },
-      {
-        "label": "2022-11",
-        "value": 3023464
-      },
-      {
-        "label": "2022-12",
-        "value": 3023876
-      },
-      {
-        "label": "2023-01",
-        "value": 2959800
-      },
-      {
-        "label": "2023-02",
-        "value": 3032284
-      },
-      {
-        "label": "2023-03",
-        "value": 3009669
-      },
-      {
-        "label": "2023-04",
-        "value": 2975669
-      },
-      {
-        "label": "2023-05",
-        "value": 3004719
-      },
-      {
-        "label": "2023-06",
-        "value": 3003003
-      },
-      {
-        "label": "2023-07",
-        "value": 3044177
-      },
-      {
-        "label": "2023-08",
-        "value": 2969998
-      },
-      {
-        "label": "2023-09",
-        "value": 3006630
-      },
-      {
-        "label": "2023-10",
-        "value": 3017963
-      },
-      {
-        "label": "2023-11",
-        "value": 3062591
-      },
-      {
         "label": "2023-12",
         "value": 3059295
       },
@@ -809,101 +497,105 @@
       },
       {
         "label": "2025-04",
-        "value": 3758489
+        "value": 3762839
       },
       {
         "label": "2025-05",
-        "value": 3788977
+        "value": 3793277
       },
       {
         "label": "2025-06",
-        "value": 3821382
+        "value": 3824441
       },
       {
         "label": "2025-07",
-        "value": 3861775
+        "value": 3864427
       },
       {
         "label": "2025-08",
-        "value": 3897012
+        "value": 3899625
       },
       {
         "label": "2025-09",
-        "value": 4009684
+        "value": 4012638
       },
       {
         "label": "2025-10",
-        "value": 4089234
+        "value": 4092404
       },
       {
         "label": "2025-11",
-        "value": 4021356
+        "value": 4024228
       },
       {
         "label": "2025-12",
-        "value": 4013051
+        "value": 4004972
       },
       {
         "label": "2026-01",
-        "value": 4017389
+        "value": 4009310
       },
       {
         "label": "2026-02",
-        "value": 4039844
+        "value": 4031765
       },
       {
         "label": "2026-03",
-        "value": 4005032
+        "value": 3996953
       },
       {
         "label": "2026-04",
-        "value": 3722302
+        "value": 3755414
       }
     ]
   },
   "vendors": {
     "CENTRAL": [
       {
-        "name": "J.J. Ibáñez",
-        "real": 6878.51
+        "name": "J.J. IBAÑEZ",
+        "real": 6536.36
       },
       {
-        "name": "Maria José",
-        "real": 4552.07
+        "name": "ANTONIO LAHUERTA",
+        "real": 6284.3
       },
       {
-        "name": "Cecilia",
-        "real": 1735.54
+        "name": "MARIA JOSE",
+        "real": 6027.28
+      },
+      {
+        "name": "CECILIA MEZA",
+        "real": 3150.41
       }
     ],
     "ALCARRAS": [
       {
-        "name": "Albert",
-        "real": 9621.49
+        "name": "ALBERT",
+        "real": 19774.4
       },
       {
-        "name": "Maria Jesús",
-        "real": 5802.47
+        "name": "MARIA JESUS BENSENY",
+        "real": 17900
       },
       {
-        "name": "Enric",
-        "real": 5549.59
+        "name": "ENRIC CALVET",
+        "real": 10220.65
       },
       {
-        "name": "Gloria",
-        "real": 1406.6
+        "name": "GLORIA LOPEZ",
+        "real": 4822.3
       }
     ],
     "ALMOZARA": [
       {
-        "name": "Blanca",
-        "real": 485.12
+        "name": "BLANCA",
+        "real": 3382.66
       }
     ],
     "CORONA": [
       {
-        "name": "Sara",
-        "real": 3920.67
+        "name": "SARA",
+        "real": 7395.07
       }
     ]
   },
@@ -983,7 +675,7 @@
         362267,
         414623,
         304680,
-        39952,
+        85493,
         null,
         null,
         null,
@@ -1069,7 +761,7 @@
         104424,
         122057,
         107997,
-        13166,
+        21998,
         null,
         null,
         null,
@@ -1155,7 +847,7 @@
         194066,
         222208,
         141522,
-        22380,
+        52717,
         null,
         null,
         null,
@@ -1199,7 +891,7 @@
         23491,
         31791,
         20950,
-        485,
+        3383,
         null,
         null,
         null,
@@ -1229,7 +921,7 @@
         40286,
         38567,
         34211,
-        3921,
+        7395,
         null,
         null,
         null,
