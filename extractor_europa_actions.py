@@ -189,20 +189,6 @@ def _imap_since_str(d: date) -> str:
     return f"{d.day}-{_IMAP_MON[d.month - 1]}-{d.year}"
 
 
-def _fecha_referencia_correo() -> tuple[date, str]:
-    """
-    Día civil en Madrid que debe coincidir con la cabecera Date del correo.
-    CORREO_REFERENCIA: ayer (defecto), hoy, latest (sin filtrar por día).
-    """
-    mode = (os.environ.get("CORREO_REFERENCIA", "ayer") or "ayer").strip().lower()
-    now = datetime.now(TZ_MADRID)
-    if mode in ("latest", "mas_reciente", "reciente"):
-        return now.date(), "latest"
-    if mode in ("hoy", "today"):
-        return now.date(), "hoy"
-    return (now - timedelta(days=1)).date(), "ayer"
-
-
 def _fecha_cabecera_date_madrid(msg: email.message.Message) -> date | None:
     raw = msg.get("Date")
     if not raw:
@@ -237,19 +223,23 @@ def find_excel_attachment(msg):
 
 def fetch_latest_erp_excel():
     """
-    Busca el correo ERP (por defecto: cabecera Date en Madrid = ayer),
-    descarga el adjunto y devuelve
-    (bytes_excel, filename, uid, fecha_generacion_desde_fichero).
+    Descarga el informe ERP más reciente según la cabecera Date en Europe/Madrid:
 
-    CORREO_REFERENCIA=ayer|hoy|latest  (por defecto ayer)
+    1. Si hay correo con ese día = hoy (Madrid), se usa el de **mayor UID**
+       (el más reciente en el buzón), leído o no leído.
+    2. Si no hay hoy, se usa el **último día natural** que tenga informe (máx. fecha Date)
+       y, dentro de ese día, otra vez el de mayor UID.
+
+    No se usa criterio UNSEEN: los mensajes leídos cuentan igual.
     """
     asunto_filtro = os.environ.get("ASUNTO_FILTRO", "Informe_ventas")
     remitente     = os.environ.get("REMITENTE", "")
-    ref_dia, ref_mode = _fecha_referencia_correo()
-    since_imap = _imap_since_str(ref_dia - timedelta(days=14))
+    hoy_madrid = datetime.now(TZ_MADRID).date()
+    since_imap = _imap_since_str(hoy_madrid - timedelta(days=45))
 
     M = imap_connect()
-    M.select("INBOX")
+    # INBOX incluye leídos y no leídos; no usamos UNSEEN.
+    M.select("INBOX", readonly=True)
 
     parts = [f"SINCE {since_imap}"]
     if remitente:
@@ -267,7 +257,7 @@ def fetch_latest_erp_excel():
         M.logout()
         raise RuntimeError("No se encontró correo ERP en INBOX (revisar ASUNTO_FILTRO / REMITENTE)")
 
-    def candidato_desde_uid(uid, filtrar_por_dia: date | None):
+    def candidato_desde_uid(uid):
         status, msg_data = M.fetch(uid, "(RFC822)")
         if status != "OK" or not msg_data or not msg_data[0]:
             return None
@@ -276,10 +266,7 @@ def fetch_latest_erp_excel():
         if not isinstance(raw, bytes):
             return None
         msg = email.message_from_bytes(raw)
-        if filtrar_por_dia is not None:
-            fd = _fecha_cabecera_date_madrid(msg)
-            if fd is None or fd != filtrar_por_dia:
-                return None
+        mail_day = _fecha_cabecera_date_madrid(msg)
         payload, fname = find_excel_attachment(msg)
         if payload is None:
             return None
@@ -291,53 +278,40 @@ def fetch_latest_erp_excel():
             os.unlink(tf_path)
         except Exception:
             fecha_gen = date(2000, 1, 1)
-        return (payload, fname, uid, fecha_gen)
+        uid_int = int(uid)
+        return (uid_int, mail_day, fecha_gen, payload, fname, uid)
 
-    # Más recientes primero (UID mayor al final de la lista típica IMAP)
-    tail = uids[-80:] if len(uids) > 80 else uids
+    limite = 200
+    tail = uids[-limite:] if len(uids) > limite else uids
     ordered = list(reversed(tail))
 
-    best = None  # (fecha_gen, uid_int, payload, fname, uid)
-    filtro = None if ref_mode == "latest" else ref_dia
+    candidatos = []
+    for uid in ordered:
+        c = candidato_desde_uid(uid)
+        if c:
+            candidatos.append(c)
 
-    if filtro is not None:
-        print(f"  Buscando correo con Date (Madrid) = {filtro} (modo {ref_mode})")
-        for uid in ordered:
-            c = candidato_desde_uid(uid, filtro)
-            if c is None:
-                continue
-            payload, fname, u, fecha_gen = c
-            uid_int = int(u)
-            cand = (fecha_gen, uid_int, payload, fname, u)
-            if best is None or cand[1] > best[1] or (cand[1] == best[1] and cand[0] >= best[0]):
-                best = cand
+    if not candidatos:
+        M.logout()
+        raise RuntimeError("Hay UIDs pero ningún adjunto .xlsx válido en el tramo revisado")
 
-    if best is None and filtro is not None:
-        print(f"  ⚠ Ningún correo con Date Madrid = {filtro}; usando el Excel más reciente de la bandeja.")
-        for uid in ordered:
-            c = candidato_desde_uid(uid, None)
-            if c is None:
-                continue
-            payload, fname, u, fecha_gen = c
-            uid_int = int(u)
-            cand = (fecha_gen, uid_int, payload, fname, u)
-            if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] > best[1]):
-                best = cand
-    elif best is None:
-        for uid in ordered:
-            c = candidato_desde_uid(uid, None)
-            if c is None:
-                continue
-            payload, fname, u, fecha_gen = c
-            uid_int = int(u)
-            cand = (fecha_gen, uid_int, payload, fname, u)
-            if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] > best[1]):
-                best = cand
+    con_fecha = [c for c in candidatos if c[1] is not None]
+    if con_fecha:
+        hoy_pool = [c for c in con_fecha if c[1] == hoy_madrid]
+        if hoy_pool:
+            best = max(hoy_pool, key=lambda x: x[0])
+            print(f"  Correo usado: Date (Madrid) = hoy ({hoy_madrid}), UID={best[5].decode() if isinstance(best[5], bytes) else best[5]}")
+        else:
+            ultimo_dia = max(c[1] for c in con_fecha)
+            pool = [c for c in con_fecha if c[1] == ultimo_dia]
+            best = max(pool, key=lambda x: x[0])
+            print(f"  Sin correo hoy ({hoy_madrid}); usando último día con informe: {ultimo_dia}, UID={best[5].decode() if isinstance(best[5], bytes) else best[5]}")
+    else:
+        best = max(candidatos, key=lambda x: x[0])
+        print("  ⚠ Sin cabecera Date parseable; usando el UID más alto con Excel.")
 
     M.logout()
-    if best is None:
-        raise RuntimeError("No se pudo descargar adjunto Excel del correo ERP")
-    fecha_gen, _uid_int, payload, fname, uid = best
+    _uid_int, _mail_day, fecha_gen, payload, fname, uid = best
     return payload, fname, uid, fecha_gen
 
 
