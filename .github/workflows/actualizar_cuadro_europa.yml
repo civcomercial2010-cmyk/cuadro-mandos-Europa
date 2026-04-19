@@ -2,9 +2,11 @@ name: Actualizar cuadro de mando Europa
 
 on:
   schedule:
-    # Programación doble para cubrir CET/CEST; la ejecución real depende del check hora Madrid.
-    - cron: '30 18 * * 1-5'
-    - cron: '30 19 * * 1-5'
+    # Doble disparo UTC: ~21:10 hora Madrid en verano (19:10 UTC) y en invierno (20:10 UTC).
+    # El correo llega siempre a las 21:00; solo ejecutamos después (ventana hora más abajo).
+    # Lun–Sáb (domingo no se programa).
+    - cron: '10 19 * * 1-6'
+    - cron: '10 20 * * 1-6'
   workflow_dispatch:
     inputs:
       force_run:
@@ -36,7 +38,7 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Comprobar hora España (ventana ~20:30)
+      - name: Comprobar hora España (tras llegada del mail ~21:00)
         id: hora
         shell: bash
         run: |
@@ -48,8 +50,8 @@ jobs:
             exit 0
           fi
 
-          # Ventana 20:00–21:59 (tolerancia cola GitHub)
-          if [ "$HM" -ge 2000 ] && [ "$HM" -le 2159 ]; then
+          # Correo a las 21:00: ejecutar solo 21:05–21:59 (margen cola GitHub / reloj)
+          if [ "$HM" -ge 2105 ] && [ "$HM" -le 2159 ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -92,4 +94,3 @@ jobs:
             git push origin HEAD:main && exit 0 || sleep 10
           done
           exit 1
-
