@@ -5,8 +5,10 @@ Flujo: Gmail IMAP → Excel ERP → data.json (GitHub Pages)
 """
 import os, re, json, imaplib, email, tempfile, traceback
 from email.header import decode_header
+from email.utils import parsedate_to_datetime
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import openpyxl
 
 # ── Deps opcionales (Google Sheets / Drive) ────────────────────────────────────
@@ -178,6 +180,42 @@ def decode_str(s):
     return result
 
 
+TZ_MADRID = ZoneInfo("Europe/Madrid")
+# Meses en inglés para criterio IMAP SINCE (RFC 3501)
+_IMAP_MON = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _imap_since_str(d: date) -> str:
+    return f"{d.day}-{_IMAP_MON[d.month - 1]}-{d.year}"
+
+
+def _fecha_referencia_correo() -> tuple[date, str]:
+    """
+    Día civil en Madrid que debe coincidir con la cabecera Date del correo.
+    CORREO_REFERENCIA: ayer (defecto), hoy, latest (sin filtrar por día).
+    """
+    mode = (os.environ.get("CORREO_REFERENCIA", "ayer") or "ayer").strip().lower()
+    now = datetime.now(TZ_MADRID)
+    if mode in ("latest", "mas_reciente", "reciente"):
+        return now.date(), "latest"
+    if mode in ("hoy", "today"):
+        return now.date(), "hoy"
+    return (now - timedelta(days=1)).date(), "ayer"
+
+
+def _fecha_cabecera_date_madrid(msg: email.message.Message) -> date | None:
+    raw = msg.get("Date")
+    if not raw:
+        return None
+    try:
+        dt = parsedate_to_datetime(raw)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+    return dt.astimezone(TZ_MADRID).date()
+
+
 def find_excel_attachment(msg):
     """Extrae el primer adjunto .xlsx del mensaje."""
     for part in msg.walk():
@@ -199,48 +237,52 @@ def find_excel_attachment(msg):
 
 def fetch_latest_erp_excel():
     """
-    Busca el correo más reciente con adjunto ERP, lo descarga y devuelve
+    Busca el correo ERP (por defecto: cabecera Date en Madrid = ayer),
+    descarga el adjunto y devuelve
     (bytes_excel, filename, uid, fecha_generacion_desde_fichero).
+
+    CORREO_REFERENCIA=ayer|hoy|latest  (por defecto ayer)
     """
     asunto_filtro = os.environ.get("ASUNTO_FILTRO", "Informe_ventas")
     remitente     = os.environ.get("REMITENTE", "")
+    ref_dia, ref_mode = _fecha_referencia_correo()
+    since_imap = _imap_since_str(ref_dia - timedelta(days=14))
 
     M = imap_connect()
     M.select("INBOX")
 
-    # Construir criterio de búsqueda
-    criteria = ["ALL"]
+    parts = [f"SINCE {since_imap}"]
     if remitente:
-        criteria = [f'FROM "{remitente}"']
+        parts.append(f'FROM "{remitente}"')
     if asunto_filtro:
-        criteria.append(f'SUBJECT "{asunto_filtro}"')
+        parts.append(f'SUBJECT "{asunto_filtro}"')
+    search_str = "(" + " ".join(parts) + ")"
 
-    search_str = " ".join(criteria) if len(criteria) > 1 else criteria[0]
     status, data = M.search(None, search_str)
     if status != "OK" or not data[0]:
-        # Fallback: buscar por nombre de adjunto común
-        status, data = M.search(None, 'SUBJECT "ventas"')
+        status, data = M.search(None, f'(SUBJECT "ventas" SINCE {since_imap})')
 
     uids = data[0].split() if data[0] else []
     if not uids:
         M.logout()
-        raise RuntimeError("No se encontró correo ERP en INBOX")
+        raise RuntimeError("No se encontró correo ERP en INBOX (revisar ASUNTO_FILTRO / REMITENTE)")
 
-    # Ordenar por UID descendente → más reciente primero
-    best_uid = None
-    best_data = (None, None)
-    best_fecha = date(2000, 1, 1)
-
-    for uid in reversed(uids[-20:]):  # Revisar últimos 20
+    def candidato_desde_uid(uid, filtrar_por_dia: date | None):
         status, msg_data = M.fetch(uid, "(RFC822)")
-        if status != "OK":
-            continue
-        raw = msg_data[0][1]
+        if status != "OK" or not msg_data or not msg_data[0]:
+            return None
+        chunk = msg_data[0]
+        raw = chunk[1] if isinstance(chunk, tuple) else chunk
+        if not isinstance(raw, bytes):
+            return None
         msg = email.message_from_bytes(raw)
+        if filtrar_por_dia is not None:
+            fd = _fecha_cabecera_date_madrid(msg)
+            if fd is None or fd != filtrar_por_dia:
+                return None
         payload, fname = find_excel_attachment(msg)
         if payload is None:
-            continue
-        # Intentar leer fecha de generación del fichero
+            return None
         try:
             with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
                 tf.write(payload)
@@ -249,16 +291,54 @@ def fetch_latest_erp_excel():
             os.unlink(tf_path)
         except Exception:
             fecha_gen = date(2000, 1, 1)
+        return (payload, fname, uid, fecha_gen)
 
-        if fecha_gen >= best_fecha:
-            best_fecha = fecha_gen
-            best_uid = uid
-            best_data = (payload, fname)
+    # Más recientes primero (UID mayor al final de la lista típica IMAP)
+    tail = uids[-80:] if len(uids) > 80 else uids
+    ordered = list(reversed(tail))
+
+    best = None  # (fecha_gen, uid_int, payload, fname, uid)
+    filtro = None if ref_mode == "latest" else ref_dia
+
+    if filtro is not None:
+        print(f"  Buscando correo con Date (Madrid) = {filtro} (modo {ref_mode})")
+        for uid in ordered:
+            c = candidato_desde_uid(uid, filtro)
+            if c is None:
+                continue
+            payload, fname, u, fecha_gen = c
+            uid_int = int(u)
+            cand = (fecha_gen, uid_int, payload, fname, u)
+            if best is None or cand[1] > best[1] or (cand[1] == best[1] and cand[0] >= best[0]):
+                best = cand
+
+    if best is None and filtro is not None:
+        print(f"  ⚠ Ningún correo con Date Madrid = {filtro}; usando el Excel más reciente de la bandeja.")
+        for uid in ordered:
+            c = candidato_desde_uid(uid, None)
+            if c is None:
+                continue
+            payload, fname, u, fecha_gen = c
+            uid_int = int(u)
+            cand = (fecha_gen, uid_int, payload, fname, u)
+            if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] > best[1]):
+                best = cand
+    elif best is None:
+        for uid in ordered:
+            c = candidato_desde_uid(uid, None)
+            if c is None:
+                continue
+            payload, fname, u, fecha_gen = c
+            uid_int = int(u)
+            cand = (fecha_gen, uid_int, payload, fname, u)
+            if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] > best[1]):
+                best = cand
 
     M.logout()
-    if best_data[0] is None:
+    if best is None:
         raise RuntimeError("No se pudo descargar adjunto Excel del correo ERP")
-    return best_data[0], best_data[1], best_uid, best_fecha
+    fecha_gen, _uid_int, payload, fname, uid = best
+    return payload, fname, uid, fecha_gen
 
 
 # ─────────────────────────────────────────────────────────────────────────────
