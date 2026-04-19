@@ -1,6 +1,12 @@
 name: Actualizar cuadro de mando Europa
 
 on:
+  # Push solo de este marcador → extracción inmediata (sin depender de la ventana 21:05–21:59).
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/trigger-extract-run.txt'
   schedule:
     # Doble disparo UTC: ~21:10 hora Madrid en verano (19:10 UTC) y en invierno (20:10 UTC).
     # El correo llega siempre a las 21:00; solo ejecutamos después (ventana hora más abajo).
@@ -46,6 +52,11 @@ jobs:
           echo "Hora local Madrid: $(date '+%H:%M') (HM=$HM)"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "push" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi

@@ -1,0 +1,2 @@
+# Edita la línea siguiente (fecha/hora) y haz push a main para lanzar el extractor ahora.
+ultimo_disparo_manual=2026-04-19T18:57:21Z
