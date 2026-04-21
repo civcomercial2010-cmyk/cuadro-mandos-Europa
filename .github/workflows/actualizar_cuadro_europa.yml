@@ -154,3 +154,17 @@ jobs:
               body,
               labels: ["automacion", "alerta", "dashboard-europa"]
             });
+
+      - name: Notificar por webhook si falla (blindada+)
+        if: failure() && env.FAIL_ALERT_WEBHOOK_URL != ''
+        env:
+          FAIL_ALERT_WEBHOOK_URL: ${{ secrets.FAIL_ALERT_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          PAYLOAD=$(cat <<EOF
+          {"text":"ALERTA: fallo en actualización automática del dashboard Europa. Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} | Evento: ${{ github.event_name }} | Rama: ${{ github.ref_name }}"}
+          EOF
+          )
+          curl -sS -X POST "$FAIL_ALERT_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
