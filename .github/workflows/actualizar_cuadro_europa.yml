@@ -1,7 +1,7 @@
 name: Actualizar cuadro de mando Europa
 
 on:
-  # Push solo de este marcador → extracción inmediata (sin depender de la ventana 21:05–21:59).
+  # Push solo de este marcador → extracción inmediata.
   push:
     branches:
       - main
@@ -9,7 +9,7 @@ on:
       - '.github/trigger-extract-run.txt'
   schedule:
     # Doble disparo UTC: ~21:10 hora Madrid en verano (19:10 UTC) y en invierno (20:10 UTC).
-    # El correo llega siempre a las 21:00; solo ejecutamos después (ventana hora más abajo).
+    # El correo llega sobre las 21:00; se usan dos cron para cubrir cambio verano/invierno.
     # Lun–Sáb (domingo no se programa).
     - cron: '10 19 * * 1-6'
     - cron: '10 20 * * 1-6'
@@ -26,8 +26,10 @@ env:
 jobs:
   actualizar:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: write
+      issues: write
 
     steps:
       - name: Clonar repositorio
@@ -44,32 +46,19 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Comprobar hora España (tras llegada del mail ~21:00)
-        id: hora
+      - name: Guardar estado previo de data.json
+        id: pre
         shell: bash
         run: |
-          HM=$(date +%H%M)
-          echo "Hora local Madrid: $(date '+%H:%M') (HM=$HM)"
-
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Correo a las 21:00: ejecutar solo 21:05–21:59 (margen cola GitHub / reloj)
-          if [ "$HM" -ge 2105 ] && [ "$HM" -le 2159 ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
+          if [ -f data.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "hash=$(sha256sum data.json | awk '{print $1}')" >> "$GITHUB_OUTPUT"
           else
-            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "hash=missing" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Ejecutar extractor
-        if: steps.hora.outputs.run == 'true'
+      - name: Ejecutar extractor (con reintentos)
         env:
           TZ: Europe/Madrid
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
@@ -81,10 +70,46 @@ jobs:
           DRIVE_SPREADSHEET_ID: ${{ secrets.DRIVE_SPREADSHEET_ID }}
           DRIVE_TAB: ${{ secrets.DRIVE_TAB }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: python extractor_europa_actions.py
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            echo "Intento extractor #$i"
+            if python extractor_europa_actions.py; then
+              exit 0
+            fi
+            echo "Extractor falló en intento #$i; reintentando en 120s..."
+            sleep 120
+          done
+          echo "Extractor falló tras 3 intentos."
+          exit 1
+
+      - name: Validar data.json generado
+        shell: bash
+        run: |
+          if [ ! -f data.json ]; then
+            echo "ERROR: no existe data.json tras ejecutar extractor."
+            exit 1
+          fi
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          p = Path("data.json")
+          try:
+              data = json.loads(p.read_text(encoding="utf-8"))
+          except Exception as e:
+              print(f"ERROR: data.json inválido: {e}")
+              sys.exit(1)
+          for key in ("meta", "kpis", "series", "historical"):
+              if key not in data:
+                  print(f"ERROR: falta clave obligatoria '{key}' en data.json")
+                  sys.exit(1)
+          if "lastRunTs" not in data.get("meta", {}):
+              print("ERROR: falta meta.lastRunTs en data.json")
+              sys.exit(1)
+          print("OK: data.json válido")
+          PY
 
       - name: Commit y push si hay cambios
-        if: steps.hora.outputs.run == 'true'
         shell: bash
         run: |
           git config user.name  "github-actions[bot]"
@@ -105,3 +130,27 @@ jobs:
             git push origin HEAD:main && exit 0 || sleep 10
           done
           exit 1
+
+      - name: Crear incidencia automática si falla
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `[ALERTA] Fallo actualización Europa - ${new Date().toISOString().slice(0,16).replace('T',' ')}`;
+            const body = [
+              "La actualización automática del cuadro de mando Europa ha fallado.",
+              "",
+              `- Workflow: ${context.workflow}`,
+              `- Run ID: ${context.runId}`,
+              `- Evento: ${context.eventName}`,
+              `- Rama: ${context.ref}`,
+              "",
+              `Revisar logs: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            ].join("\n");
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["automacion", "alerta", "dashboard-europa"]
+            });
