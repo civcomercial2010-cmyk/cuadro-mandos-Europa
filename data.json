@@ -1,18 +1,18 @@
 {
   "meta": {
-    "lastLoadDate": "2026-04-22",
-    "lastRunTs": "2026-04-22T21:08:01",
+    "lastLoadDate": "2026-04-23",
+    "lastRunTs": "2026-04-23T20:12:02",
     "comercialMonth": "2026-04",
     "comercialMonthLabel": "Abril 2026"
   },
   "kpis": {
     "global": {
-      "real": 227763.28,
+      "real": 233938.48,
       "budget": 417000,
-      "projection": 248469.03,
-      "pace": 10352.88,
-      "varProyVsBudget": -168530.97,
-      "pctProyBudget": 59.6,
+      "projection": 255205.61,
+      "pace": 10633.57,
+      "varProyVsBudget": -161794.39,
+      "pctProyBudget": 61.2,
       "daysElapsed": 22,
       "daysTotal": 24
     },
@@ -28,12 +28,12 @@
         "daysTotal": 24
       },
       "ALCARRAS": {
-        "real": 134049.16,
+        "real": 140224.36,
         "budget": 179000,
-        "projection": 146235.45,
-        "pace": 6093.14,
-        "varProyVsBudget": -32764.55,
-        "cumplPct": 81.7,
+        "projection": 152972.03,
+        "pace": 6373.83,
+        "varProyVsBudget": -26027.97,
+        "cumplPct": 85.5,
         "daysElapsed": 22,
         "daysTotal": 24
       },
@@ -136,16 +136,16 @@
         },
         {
           "month": 4,
-          "real": 227763.28,
+          "real": 233938.48,
           "budget": 417000,
-          "projection": 248469.03,
+          "projection": 255205.61,
           "byCenter": {
             "CENTRAL": {
               "real": 56592.58,
               "budget": 129000
             },
             "ALCARRAS": {
-              "real": 134049.16,
+              "real": 140224.36,
               "budget": 179000
             },
             "ALMOZARA": {
@@ -545,7 +545,7 @@
       },
       {
         "label": "2026-04",
-        "value": 3897684
+        "value": 3903859
       }
     ]
   },
@@ -578,16 +578,16 @@
     ],
     "ALCARRAS": [
       {
+        "name": "MARIA JESUS BENSENY",
+        "real": 43828.56
+      },
+      {
         "name": "ALBERT",
         "real": 43402.48
       },
       {
-        "name": "MARIA JESUS BENSENY",
-        "real": 41231.87
-      },
-      {
         "name": "GLORIA LOPEZ",
-        "real": 25743.77
+        "real": 29322.28
       },
       {
         "name": "ENRIC CALVET",
@@ -687,7 +687,7 @@
         362267,
         414623,
         304680,
-        227763,
+        233938,
         null,
         null,
         null,
@@ -859,7 +859,7 @@
         194066,
         222208,
         141522,
-        134049,
+        140224,
         null,
         null,
         null,
