@@ -8,11 +8,12 @@ on:
     paths:
       - '.github/trigger-extract-run.txt'
   schedule:
-    # Doble disparo UTC: ~21:10 hora Madrid en verano (19:10 UTC) y en invierno (20:10 UTC).
-    # El correo llega sobre las 21:00; se usan dos cron para cubrir cambio verano/invierno.
+    # Ejecutar a las 20:45 hora Madrid todo el año:
+    # - Verano (CEST, UTC+2): 18:45 UTC
+    # - Invierno (CET,  UTC+1): 19:45 UTC
     # Lun–Sáb (domingo no se programa).
-    - cron: '10 19 * * 1-6'
-    - cron: '10 20 * * 1-6'
+    - cron: '45 18 * * 1-6'
+    - cron: '45 19 * * 1-6'
   workflow_dispatch:
     inputs:
       force_run:
