@@ -8,12 +8,12 @@ on:
     paths:
       - '.github/trigger-extract-run.txt'
   schedule:
-    # Ejecutar a las 20:45 hora Madrid todo el año:
-    # - Verano (CEST, UTC+2): 18:45 UTC
-    # - Invierno (CET,  UTC+1): 19:45 UTC
+    # Ventana robusta alrededor de la llegada del correo (sin depender de un minuto exacto):
+    # - Verano (CEST, UTC+2): 21:05..22:55 cada 10 min
+    # - Invierno (CET,  UTC+1): 21:05..22:55 cada 10 min
     # Lun–Sáb (domingo no se programa).
-    - cron: '45 18 * * 1-6'
-    - cron: '45 19 * * 1-6'
+    - cron: '5-55/10 19 * * 1-6'
+    - cron: '5-55/10 20 * * 1-6'
   workflow_dispatch:
     inputs:
       force_run:
@@ -71,17 +71,29 @@ jobs:
           DRIVE_SPREADSHEET_ID: ${{ secrets.DRIVE_SPREADSHEET_ID }}
           DRIVE_TAB: ${{ secrets.DRIVE_TAB }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          REQUIRE_TODAY_REPORT: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
         shell: bash
         run: |
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5 6; do
             echo "Intento extractor #$i"
-            if python extractor_europa_actions.py; then
+            python extractor_europa_actions.py 2>&1 | tee extractor.log
+            code=${PIPESTATUS[0]}
+            if [ "$code" -eq 0 ]; then
               exit 0
             fi
-            echo "Extractor falló en intento #$i; reintentando en 120s..."
-            sleep 120
+            if rg -n "NO_CORREO_HOY" extractor.log > /dev/null; then
+              echo "Aún no ha llegado el correo del día; reintento en 180s."
+              sleep 180
+              continue
+            fi
+            echo "Extractor falló en intento #$i; reintentando en 180s..."
+            sleep 180
           done
-          echo "Extractor falló tras 3 intentos."
+          if rg -n "NO_CORREO_HOY" extractor.log > /dev/null; then
+            echo "Sin correo del día tras reintentos; se deja este run en estado OK y lo retomará el próximo cron."
+            exit 0
+          fi
+          echo "Extractor falló tras 6 intentos."
           exit 1
 
       - name: Validar data.json generado

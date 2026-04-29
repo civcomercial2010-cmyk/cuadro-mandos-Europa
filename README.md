@@ -4,10 +4,15 @@ GitHub Pages (HTML/JS estático) + `data.json` generado por extractor Python (IM
 
 ## Flujo
 1. Cada noche llega un email con adjunto Excel del ERP.
-2. `extractor_europa_actions.py` descarga el adjunto vía IMAP y selecciona el **Excel más reciente por fecha/hora de generación** (si empate, gana el UID IMAP mayor).
+2. `extractor_europa_actions.py` descarga el adjunto vía IMAP y selecciona el **Excel más reciente por fecha/hora de generación** (si empate, gana el UID IMAP mayor). En ejecución programada, puede exigirse correo del día con `REQUIRE_TODAY_REPORT=true` para evitar fallback silencioso a un día anterior.
 3. El Excel se vuelca (append) a la pestaña `Datos` de un Google Sheets/Drive (idempotente por `fecha_generacion + nombre_adjunto`).
 4. El extractor agrega métricas por **centro** y genera `data.json` para el frontend.
 5. El workflow hace commit/push si `data.json` cambió.
+
+## Programación robusta (GitHub Actions)
+- El workflow se ejecuta en ventana de 10 minutos (`xx:05..xx:55`) para absorber retrasos de llegada del correo.
+- Si aún no existe correo del día, reintenta y deja el run en OK para que el siguiente cron continúe automáticamente.
+- Si falla por error real (IMAP/parseo/push), dispara issue de alerta y opcionalmente webhook (`FAIL_ALERT_WEBHOOK_URL`).
 
 ## Secrets GitHub (necesarios)
 Gmail/IMAP:

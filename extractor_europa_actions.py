@@ -234,6 +234,7 @@ def fetch_latest_erp_excel():
     """
     asunto_filtro = os.environ.get("ASUNTO_FILTRO", "Informe_ventas")
     remitente     = os.environ.get("REMITENTE", "")
+    require_today = os.environ.get("REQUIRE_TODAY_REPORT", "").strip().lower() in ("1", "true", "yes", "si")
     hoy_madrid = datetime.now(TZ_MADRID).date()
     since_imap = _imap_since_str(hoy_madrid - timedelta(days=45))
 
@@ -302,6 +303,12 @@ def fetch_latest_erp_excel():
             best = max(hoy_pool, key=lambda x: x[0])
             print(f"  Correo usado: Date (Madrid) = hoy ({hoy_madrid}), UID={best[5].decode() if isinstance(best[5], bytes) else best[5]}")
         else:
+            if require_today:
+                M.logout()
+                raise RuntimeError(
+                    f"NO_CORREO_HOY: no hay informe con Date={hoy_madrid} en Madrid. "
+                    "Se omite fallback a días anteriores para evitar falso 'actualizado'."
+                )
             ultimo_dia = max(c[1] for c in con_fecha)
             pool = [c for c in con_fecha if c[1] == ultimo_dia]
             best = max(pool, key=lambda x: x[0])
