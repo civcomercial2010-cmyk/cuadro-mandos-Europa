@@ -8,12 +8,14 @@ on:
     paths:
       - '.github/trigger-extract-run.txt'
   schedule:
-    # Ventana robusta alrededor de la llegada del correo (sin depender de un minuto exacto):
-    # - Verano (CEST, UTC+2): 21:05..22:55 cada 10 min
-    # - Invierno (CET,  UTC+1): 21:05..22:55 cada 10 min
+    # Ventana centrada en llegada del correo (~20:30 Madrid), con margen:
+    # - Verano (CEST, UTC+2): 20:25..21:20 cada 5 min
+    # - Invierno (CET,  UTC+1): 20:25..21:20 cada 5 min
     # Lun–Sáb (domingo no se programa).
-    - cron: '5-55/10 19 * * 1-6'
-    - cron: '5-55/10 20 * * 1-6'
+    - cron: '25-55/5 18 * * 1-6'
+    - cron: '0-20/5 19 * * 1-6'
+    - cron: '25-55/5 19 * * 1-6'
+    - cron: '0-20/5 20 * * 1-6'
   workflow_dispatch:
     inputs:
       force_run:
