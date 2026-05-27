@@ -1004,5 +1004,153 @@
         null
       ]
     }
+  },
+  "vendorsByMonth": {
+    "2026-06": {
+      "CENTRAL": [
+        {
+          "name": "CECILIA MEZA",
+          "real": 1615.7
+        }
+      ],
+      "ALCARRAS": [
+        {
+          "name": "ALBERT",
+          "real": 3017.35
+        },
+        {
+          "name": "GLORIA LOPEZ",
+          "real": 936.36
+        }
+      ],
+      "ALMOZARA": [
+        {
+          "name": "BLANCA",
+          "real": 1487.6
+        }
+      ],
+      "CORONA": [
+        {
+          "name": "ROSA",
+          "real": 1083.47
+        }
+      ]
+    },
+    "2026-05": {
+      "CENTRAL": [
+        {
+          "name": "ANTONIO LAHUERTA",
+          "real": 27774.38
+        },
+        {
+          "name": "CECILIA MEZA",
+          "real": 21549.59
+        },
+        {
+          "name": "SARA",
+          "real": 13959.5
+        },
+        {
+          "name": "ANTONIO / CECILIA",
+          "real": 2761.15
+        },
+        {
+          "name": "J.J. IBAÃ‘EZ",
+          "real": 458.68
+        }
+      ],
+      "ALCARRAS": [
+        {
+          "name": "MARIA JESUS BENSENY",
+          "real": 49315.71
+        },
+        {
+          "name": "ALBERT",
+          "real": 45932.24
+        },
+        {
+          "name": "ENRIC CALVET",
+          "real": 43787.6
+        },
+        {
+          "name": "GLORIA LOPEZ",
+          "real": 25776
+        }
+      ],
+      "ALMOZARA": [
+        {
+          "name": "BLANCA",
+          "real": 33114.07
+        }
+      ],
+      "CORONA": [
+        {
+          "name": "ROSA",
+          "real": 50071.91
+        }
+      ]
+    },
+    "2026-04": {
+      "CENTRAL": [
+        {
+          "name": "J.J. IBAÃ‘EZ",
+          "real": 18561.16
+        },
+        {
+          "name": "MARIA JOSE",
+          "real": 16923.98
+        },
+        {
+          "name": "CECILIA MEZA",
+          "real": 15633.06
+        },
+        {
+          "name": "ANTONIO LAHUERTA",
+          "real": 12215.71
+        },
+        {
+          "name": "SARA",
+          "real": 8073.56
+        },
+        {
+          "name": "ANTONIO / CECILIA",
+          "real": 106.61
+        }
+      ],
+      "ALCARRAS": [
+        {
+          "name": "ALBERT",
+          "real": 47823.96
+        },
+        {
+          "name": "MARIA JESUS BENSENY",
+          "real": 45903.77
+        },
+        {
+          "name": "GLORIA LOPEZ",
+          "real": 35429.71
+        },
+        {
+          "name": "ENRIC CALVET",
+          "real": 26739.63
+        }
+      ],
+      "ALMOZARA": [
+        {
+          "name": "BLANCA",
+          "real": 15559.52
+        }
+      ],
+      "CORONA": [
+        {
+          "name": "ROSA",
+          "real": 22523.97
+        },
+        {
+          "name": "SARA",
+          "real": 7414.9
+        }
+      ]
+    }
   }
 }

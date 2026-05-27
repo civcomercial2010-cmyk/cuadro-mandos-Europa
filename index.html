@@ -256,6 +256,15 @@ select{padding:5px 8px;border:1px solid var(--bd);border-radius:6px;font-size:12
     </div>
   </div>
   <div id="vend-body"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="card-hdr" style="padding:12px 15px 8px">
+      <div>
+        <div class="card-title">Acumulado por vendedor (desde enero)</div>
+        <div class="card-sub" id="vend-ytd-sub">Suma de ventas reales de enero al mes seleccionado</div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0 15px 15px" id="vend-ytd-body"></div>
+  </div>
 </section>
  
 <section id="sec-historico" class="tab-content">
@@ -623,8 +632,9 @@ function renderCentros() {
       var d2 = real - prevVal, pct2 = d2 / prevVal * 100;
       yoyHtml = '<div class="crow"><span class="ck">Ventas a\u00f1o anterior</span><span class="cv ' + (d2 >= 0 ? 'cv-up' : 'cv-dn') + '">' + fmtE(prevVal) + '&nbsp;<small>(' + sgn(pct2) + pct2.toFixed(1) + '%)</small></span></div>';
     }
-    var isCur = kpi && kpi.isCurrent, vlist = isCur ? (D.vendors || {})[c] || [] : [];
-    var vrows = vlist.length ? vlist.map(function(v) { var pct = real > 0 ? (v.real / real * 100).toFixed(1) : '\u2014'; return '<tr><td>' + (v.name || '\u2014') + '</td><td class="vnum">' + fmtE(v.real) + '</td><td class="vright">' + pct + ' %</td></tr>'; }).join('') : '<tr><td colspan="3" class="empty-msg">' + (isCur ? 'Sin desglose' : 'Solo mes actual') + '</td></tr>';
+    var mNum = monthSel === 'acumulado' ? null : parseInt(monthSel, 10);
+    var vlist = mNum ? ((getVendorsByCenter(year, mNum)[c] || [])) : [];
+    var vrows = vlist.length ? vlist.map(function(v) { var pct = real > 0 ? (v.real / real * 100).toFixed(1) : '\u2014'; return '<tr><td>' + (v.name || '\u2014') + '</td><td class="vnum">' + fmtE(v.real) + '</td><td class="vright">' + pct + ' %</td></tr>'; }).join('') : '<tr><td colspan="3" class="empty-msg">' + (mNum ? 'Sin desglose' : 'Solo mes concreto') + '</td></tr>';
     var isExp = detailState[c] || false;
     var cRolling = calcCenterRolling(c), cCur = cRolling.length ? cRolling[cRolling.length - 1].value : null, cPrev = null;
     if (cRolling.length) {
@@ -680,28 +690,101 @@ function toggleAll() {
 }
  
 // ── Vendedores ────────────────────────────────────────────────────────────────
+function vendorMonthKey(year, month) {
+  return year + '-' + String(month).padStart(2, '0');
+}
+function getVendorsByCenter(year, month) {
+  var key = vendorMonthKey(year, month);
+  var vbm = ((D || {}).vendorsByMonth || {})[key];
+  if (vbm && typeof vbm === 'object') return vbm;
+  var cm = getComMes();
+  if (year === cm.year && month === cm.month && D.vendors) return D.vendors;
+  return {};
+}
+function findVendorReal(vlist, name) {
+  var target = String(name || '').trim().toUpperCase();
+  for (var i = 0; i < (vlist || []).length; i++) {
+    if (String((vlist[i].name || '')).trim().toUpperCase() === target) return vlist[i].real || 0;
+  }
+  return null;
+}
+function calcVendorYoy(year, month, center, name, real) {
+  if (real == null) return null;
+  var prevReal = findVendorReal((getVendorsByCenter(year - 1, month)[center] || []), name);
+  if (prevReal == null || prevReal <= 0) return null;
+  return (real - prevReal) / prevReal * 100;
+}
+function sumVendorsYtd(year, endMonth) {
+  var acc = {};
+  CENTERS.forEach(function(c) { acc[c] = {}; });
+  for (var m = 1; m <= endMonth; m++) {
+    var byC = getVendorsByCenter(year, m);
+    CENTERS.forEach(function(c) {
+      (byC[c] || []).forEach(function(v) {
+        var n = (v.name || '\u2014').trim();
+        if (!n) return;
+        acc[c][n] = (acc[c][n] || 0) + (v.real || 0);
+      });
+    });
+  }
+  return acc;
+}
+function renderVendorGroup(c, vlist, opts) {
+  opts = opts || {};
+  var totalC = vlist.reduce(function(s, v) { return s + (v.real || 0); }, 0);
+  var rows = vlist.length ? vlist.map(function(v) {
+    var r = v.real || 0, pct = totalC > 0 ? (r / totalC * 100).toFixed(1) : '\u2014';
+    var yoy = v.yoyRealPct != null ? v.yoyRealPct : (opts.withYoy ? calcVendorYoy(opts.year, opts.month, c, v.name, r) : null);
+    var yc = yoy != null ? (yoy >= 0 ? 'pill-g' : 'pill-r') : 'pill-n';
+    return '<tr><td>' + (v.name || '\u2014') + '</td><td class="vnum">' + fmtE(r) + '</td><td class="vright">' + pct + ' %</td>' +
+      (opts.withYoy ? '<td class="vright"><span class="pill ' + yc + '">' + (yoy != null ? sgn(yoy) + yoy.toFixed(1) + '%' : '\u2014') + '</span></td>' : '') + '</tr>';
+  }).join('') : '<tr><td colspan="' + (opts.withYoy ? 4 : 3) + '" class="empty-msg">Sin desglose disponible</td></tr>';
+  var div = document.createElement('div'); div.className = 'vg';
+  div.innerHTML = '<div class="vg-hdr">' + (CL[c] || c) + (opts.subtitle ? ' \u00b7 ' + opts.subtitle : '') + '</div><div class="vg-body"><table class="vtable" style="margin:0"><tr><th>Vendedor</th><th style="text-align:right">' + (opts.colLabel || 'Real') + '</th><th style="text-align:right">% Centro</th>' +
+    (opts.withYoy ? '<th style="text-align:right">YoY</th>' : '') + '</tr>' + rows + '</table></div>';
+  return div;
+}
 function renderVendedores() {
   if (!D) return;
   var year = parseInt(selVal('sv-year') || new Date().getFullYear()), monthSel = selVal('sv-month'), cm = getComMes();
-  var isCur = monthSel !== 'acumulado' && year === cm.year && parseInt(monthSel) === cm.month;
-  var body = document.getElementById('vend-body'); body.innerHTML = '';
-  if (!isCur) {
-    body.innerHTML = '<div class="empty-msg" style="padding:20px">El desglose por vendedor solo est\u00e1 disponible para el mes comercial en curso (' + cm.year + '-' + String(cm.month).padStart(2, '0') + ').</div>'; return;
+  var body = document.getElementById('vend-body'), ytdBody = document.getElementById('vend-ytd-body'), ytdSub = document.getElementById('vend-ytd-sub');
+  body.innerHTML = '';
+  if (ytdBody) ytdBody.innerHTML = '';
+
+  var ORDER = ['CENTRAL','ALCARRAS','ALMOZARA','CORONA'];
+  var endM = monthSel === 'acumulado' ? (year === cm.year ? cm.month : 12) : parseInt(monthSel, 10);
+
+  if (monthSel === 'acumulado') {
+    body.innerHTML = '<div class="empty-msg" style="padding:16px 20px">Seleccione un mes concreto para ver la venta por vendedor de ese periodo. El acumulado desde enero aparece en el cuadro inferior.</div>';
+  } else {
+  var month = parseInt(monthSel, 10);
+  var byC = getVendorsByCenter(year, month);
+  var hasMonth = ORDER.some(function(c) { return (byC[c] || []).length > 0; });
+
+  if (!hasMonth) {
+    body.innerHTML = '<div class="empty-msg" style="padding:20px">Sin desglose por vendedor para ' + MN[month - 1] + ' ' + year + '. Los meses se guardan autom\u00e1ticamente cuando el extractor procesa el informe ERP de ese periodo.</div>';
+  } else {
+    var monthLabel = MN[month - 1] + ' ' + year;
+    ORDER.forEach(function(c) {
+      var raw = (byC[c] || []).slice().sort(function(a, b) { return (b.real || 0) - (a.real || 0); });
+      body.appendChild(renderVendorGroup(c, raw, {year: year, month: month, withYoy: true, subtitle: monthLabel, colLabel: 'Real mes'}));
+    });
   }
-  var vendors = D.vendors || {}, ORDER = ['CENTRAL','ALCARRAS','ALMOZARA','CORONA'];
-  var ordered = ORDER.filter(function(c) { return vendors[c]; }).concat(Object.keys(vendors).filter(function(c) { return ORDER.indexOf(c) < 0; }));
-  if (!ordered.length) { body.innerHTML = '<div class="empty-msg">Sin datos de vendedores</div>'; return; }
-  ordered.forEach(function(c) {
-    var vlist = vendors[c] || [], totalC = vlist.reduce(function(s, v) { return s + (v.real || 0); }, 0);
-    var rows = vlist.length ? vlist.map(function(v) {
-      var r = v.real || 0, pct = totalC > 0 ? (r / totalC * 100).toFixed(1) : '\u2014';
-      var yoy = v.yoyRealPct, yc = yoy != null ? (yoy >= 0 ? 'pill-g' : 'pill-r') : 'pill-n';
-      return '<tr><td>' + (v.name || '\u2014') + '</td><td class="vnum">' + fmtE(r) + '</td><td class="vright">' + pct + ' %</td><td class="vright"><span class="pill ' + yc + '">' + (yoy != null ? sgn(yoy) + yoy.toFixed(1) + '%' : '\u2014') + '</span></td></tr>';
-    }).join('') : '<tr><td colspan="4" class="empty-msg">Sin desglose disponible</td></tr>';
-    var div = document.createElement('div'); div.className = 'vg';
-    div.innerHTML = '<div class="vg-hdr">' + (CL[c] || c) + '</div><div class="vg-body"><table class="vtable" style="margin:0"><tr><th>Vendedor</th><th style="text-align:right">Real mes</th><th style="text-align:right">% Centro</th><th style="text-align:right">YoY</th></tr>' + rows + '</table></div>';
-    body.appendChild(div);
-  });
+  }
+
+  if (ytdBody && ytdSub) {
+    ytdSub.textContent = 'Suma de ventas reales de enero a ' + MN[endM - 1].toLowerCase() + ' de ' + year;
+    var ytd = sumVendorsYtd(year, endM);
+    var ytdHas = ORDER.some(function(c) { return Object.keys(ytd[c] || {}).length > 0; });
+    if (!ytdHas) {
+      ytdBody.innerHTML = '<div class="empty-msg" style="padding:12px 0">Sin datos acumulados de vendedores para ' + year + ' (se rellenan mes a mes con cada actualizaci\u00f3n del extractor).</div>';
+    } else {
+      ORDER.forEach(function(c) {
+        var entries = Object.keys(ytd[c] || {}).map(function(n) { return {name: n, real: ytd[c][n]}; }).sort(function(a, b) { return b.real - a.real; });
+        ytdBody.appendChild(renderVendorGroup(c, entries, {colLabel: 'Acum. Ene\u2013' + MS[endM - 1], subtitle: year}));
+      });
+    }
+  }
 }
  
 // ── Histórico ─────────────────────────────────────────────────────────────────

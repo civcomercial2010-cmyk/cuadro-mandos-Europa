@@ -785,6 +785,21 @@ def generar_data_json(erp_data: dict, output_path: str = "data.json"):
     hist_almozara = merge_year_map(existing_historical.get("ALMOZARA") or {}, hist_almozara)
     hist_corona = merge_year_map(existing_historical.get("CORONA") or {}, hist_corona)
 
+    # Histórico de vendedores por mes comercial (no sobrescribir meses anteriores)
+    cm_key = f"{com_year}-{com_month:02d}"
+    existing_vbm = existing.get("vendorsByMonth") or {}
+    vendors_by_month = {
+        k: dict(v) if isinstance(v, dict) else v
+        for k, v in existing_vbm.items()
+    }
+    vendors_by_month[cm_key] = {
+        c: [
+            {"name": x.get("name", ""), "real": round(float(x.get("real") or 0), 2)}
+            for x in vend.get(c, [])
+        ]
+        for c in ["CENTRAL", "ALCARRAS", "ALMOZARA", "CORONA"]
+    }
+
     # ── Ensamblar JSON ─────────────────────────────────────────────────────────
     data = {
         "meta": {
@@ -813,6 +828,7 @@ def generar_data_json(erp_data: dict, output_path: str = "data.json"):
         "vendors": {
             c: vend.get(c, []) for c in ["CENTRAL","ALCARRAS","ALMOZARA","CORONA"]
         },
+        "vendorsByMonth": vendors_by_month,
         "historical": {
             "TOTAL":    historical_total,
             "CENTRAL":  hist_central,
