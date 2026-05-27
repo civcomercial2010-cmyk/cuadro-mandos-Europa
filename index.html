@@ -689,26 +689,56 @@ function renderHistTable(ckey) {
   if (!years.length) { table.innerHTML = '<tr><td colspan="15" class="empty-msg" style="padding:20px">Sin datos hist\u00f3ricos</td></tr>'; nota.textContent = ''; return; }
   var html = '<tr><th>A\u00f1o</th>' + MS.map(function(m) { return '<th>' + m + '</th>'; }).join('') + '<th>Total</th><th>YoY</th></tr>';
   var rows = years.map(function(y) { return {year: y, mv: (hist[y] || hist[String(y)] || [])}; });
-  rows.forEach(function(r, ri) {
-    var mv = r.mv, year = r.year;
-    var mvFixed = mv.map(function(v, mi) {
-      var m = mi + 1;
-      if (year === cm.year) {
-        var me = getMonthEntry(year, m);
-        if (me && (v == null || m === cm.month)) {
-          if (ckey === 'TOTAL') {
-            return (me.projection != null ? me.projection : (me.real != null ? me.real : v));
-          }
-          var ck = getCenterKPI(ckey, year, m);
-          if (ck) return (ck.projection != null ? ck.projection : (ck.real != null ? ck.real : v));
-        }
+  function resolveHistValue(year, month, vHist) {
+    var mEnt = getMonthEntry(year, month);
+
+    // Mes en curso: forzamos proyección/real (si existe).
+    if (year === cm.year && month === cm.month && mEnt) {
+      if (ckey === 'TOTAL') {
+        return (mEnt.projection != null ? mEnt.projection : (mEnt.real != null ? mEnt.real : vHist));
       }
-      return v;
-    });
+      var ck = getCenterKPI(ckey, year, month);
+      if (ck) return (ck.projection != null ? ck.projection : (ck.real != null ? ck.real : vHist));
+    }
+
+    // Si histórico viene null, intentamos completar con series/monthly.
+    if ((vHist == null || vHist === undefined) && mEnt) {
+      if (ckey === 'TOTAL') {
+        if (mEnt.projection != null) return mEnt.projection;
+        if (mEnt.real != null) return mEnt.real;
+      } else {
+        var ck2 = getCenterKPI(ckey, year, month);
+        if (ck2) return (ck2.projection != null ? ck2.projection : (ck2.real != null ? ck2.real : vHist));
+      }
+    }
+
+    return vHist;
+  }
+
+  function calcRowTotal(year, mvArr) {
+    var total = 0;
+    var arr = Array.isArray(mvArr) ? mvArr : [];
+    for (var month = 1; month <= 12; month++) {
+      var vHist = (month - 1) < arr.length ? arr[month - 1] : null;
+      var v = resolveHistValue(year, month, vHist);
+      total += (v || 0);
+    }
+    return total;
+  }
+
+  rows.forEach(function(r, ri) {
+    var mvArr = Array.isArray(r.mv) ? r.mv : [];
+    var year = r.year;
+    var mvFixed = [];
+    for (var month = 1; month <= 12; month++) {
+      var vHist = (month - 1) < mvArr.length ? mvArr[month - 1] : null;
+      mvFixed.push(resolveHistValue(year, month, vHist));
+    }
     var total = mvFixed.reduce(function(s, v) { return s + (v || 0); }, 0);
-    var prevRow = rows[ri + 1], prevTotal = prevRow ? prevRow.mv.reduce(function(s, v) { return s + (v || 0); }, 0) : null;
+    var prevRow = rows[ri + 1], prevTotal = prevRow ? calcRowTotal(prevRow.year, prevRow.mv) : null;
     var yoy = prevTotal != null && prevTotal > 0 ? (total - prevTotal) / prevTotal * 100 : null;
     var yc = yoy != null ? (yoy >= 0 ? 'yp' : 'yn') : '', yt = yoy != null ? sgn(yoy) + yoy.toFixed(1) + '%' : '\u2014';
+
     html += '<tr class="' + (year === cm.year ? 'cy' : '') + '">' +
       '<td>' + year + '</td>' +
       mvFixed.map(function(v, mi) {
