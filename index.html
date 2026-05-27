@@ -696,7 +696,11 @@ function renderHistTable(ckey) {
       if (year === cm.year) {
         var me = getMonthEntry(year, m);
         if (me && (v == null || m === cm.month)) {
-          return (me.projection != null ? me.projection : (me.real != null ? me.real : v));
+          if (ckey === 'TOTAL') {
+            return (me.projection != null ? me.projection : (me.real != null ? me.real : v));
+          }
+          var ck = getCenterKPI(ckey, year, m);
+          if (ck) return (ck.projection != null ? ck.projection : (ck.real != null ? ck.real : v));
         }
       }
       return v;
