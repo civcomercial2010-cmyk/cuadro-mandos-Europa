@@ -133,7 +133,22 @@ select{padding:5px 8px;border:1px solid var(--bd);border-radius:6px;font-size:12
   #sec-vendedores .vend-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 }
 @media(max-width:640px){
-  #sec-vendedores .vend-grid{grid-template-columns:1fr}
+  #sec-vendedores{padding-bottom:20px}
+  #sec-vendedores .vend-grid{grid-template-columns:1fr;gap:14px;width:100%}
+  #sec-vendedores .vg{width:100%;max-width:100%}
+  #sec-vendedores .vg-body{max-height:none;overflow:visible;-webkit-overflow-scrolling:touch}
+  #sec-vendedores .vtable{font-size:13px}
+  #sec-vendedores .vtable th,#sec-vendedores .vtable td{padding:8px 10px}
+  #sec-vendedores .vtable .vname{max-width:none;white-space:normal;word-break:break-word;line-height:1.35}
+  #sec-vendedores .vshare{flex-wrap:wrap;justify-content:flex-end}
+  #sec-vendedores .vbar-wrap{max-width:88px;min-width:48px}
+  #sec-vendedores .vg-sum{font-size:13px}
+  #sec-vendedores .vend-period{font-size:13px;padding:10px 12px}
+}
+@media(max-width:640px){
+  #sec-vendedores .sec-hdr{flex-direction:column;align-items:stretch}
+  #sec-vendedores .sels{display:flex;width:100%;gap:8px}
+  #sec-vendedores .sels select{flex:1;min-width:0;width:100%}
 }
 /* vg genérico (detalle centros) */
 .vg{margin-bottom:16px}
@@ -317,6 +332,7 @@ var MN=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septi
 var MS=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 var CL={CENTRAL:'Central',CORONA:'Corona',ALMOZARA:'Almozara',ALCARRAS:'Alcarr\u00e0s'};
 var CENTERS=['CENTRAL','CORONA','ALMOZARA','ALCARRAS'];
+var VENDOR_GRID_ORDER=['CENTRAL','ALMOZARA','CORONA','ALCARRAS'];
  
 // ── Formatters ────────────────────────────────────────────────────────────────
 function fmt(n, dec) {
@@ -811,7 +827,7 @@ function renderVendedores() {
   if (ytdBody) { ytdBody.innerHTML = ''; ytdBody.className = 'vend-grid'; }
   if (periodLbl) { periodLbl.style.display = 'none'; periodLbl.textContent = ''; }
 
-  var ORDER = ['CENTRAL','ALCARRAS','ALMOZARA','CORONA'];
+  var ORDER = VENDOR_GRID_ORDER;
   var endM = monthSel === 'acumulado' ? (year === cm.year ? cm.month : 12) : parseInt(monthSel, 10);
 
   if (monthSel === 'acumulado') {
