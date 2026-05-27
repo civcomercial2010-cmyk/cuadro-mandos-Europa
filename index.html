@@ -106,7 +106,36 @@ select{padding:5px 8px;border:1px solid var(--bd);border-radius:6px;font-size:12
 .vtable th{background:#f8fafc;color:var(--tx-s);font-weight:700;text-align:left;padding:5px 7px;border-bottom:1px solid var(--bd);font-size:9px;text-transform:uppercase;letter-spacing:.05em}
 .vtable td{padding:5px 7px;border-bottom:1px solid var(--bd2);color:var(--tx)}
 .vtable tr:last-child td{border:none}
-.vnum{font-family:'Sora',sans-serif;text-align:right!important}.vright{text-align:right!important}
+.vnum{font-family:'Sora',sans-serif;text-align:right!important;font-variant-numeric:tabular-nums}.vright{text-align:right!important}
+/* Vendedores — cuadrícula compacta */
+#sec-vendedores .vend-block{margin-bottom:14px}
+#sec-vendedores .vend-period{font-family:'Sora',sans-serif;font-size:12px;font-weight:700;color:var(--tx-h);margin:0 0 10px;padding:8px 12px;background:#f1f5f9;border:1px solid var(--bd);border-radius:8px}
+#sec-vendedores .vend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+#sec-vendedores .vend-grid .empty-msg{grid-column:1/-1}
+#sec-vendedores .vg{margin:0;min-width:0;display:flex;flex-direction:column;height:100%;border:1px solid var(--bd);border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+#sec-vendedores .vg-hdr{background:var(--navy);color:#fff;padding:8px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:'Sora',sans-serif}
+#sec-vendedores .vg-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#e2e8f0}
+#sec-vendedores .vg-sum{font-size:12px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+#sec-vendedores .vg-body{border:none;border-radius:0;overflow:auto;max-height:420px}
+#sec-vendedores .vtable{margin:0;font-size:12px;table-layout:fixed;width:100%}
+#sec-vendedores .vtable th{padding:6px 8px;font-size:9px;position:sticky;top:0;z-index:1}
+#sec-vendedores .vtable td{padding:6px 8px;vertical-align:middle}
+#sec-vendedores .vtable tbody tr:nth-child(even) td{background:#f8fafc}
+#sec-vendedores .vtable .vname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0}
+#sec-vendedores .vtable .vrow-total td{font-weight:700;background:#eef2ff!important;border-top:1px solid var(--bd);color:var(--tx-h)}
+#sec-vendedores .vshare{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+#sec-vendedores .vshare span{font-size:11px;font-weight:600;color:var(--tx-m);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+#sec-vendedores .vbar-wrap{flex:1;max-width:72px;height:5px;background:#e2e8f0;border-radius:99px;overflow:hidden}
+#sec-vendedores .vbar{height:100%;background:var(--blue);border-radius:99px}
+#sec-vendedores .vtable .pill{font-size:10px;padding:2px 6px}
+#sec-vendedores #vend-ytd-body.vend-grid{padding:0}
+@media(min-width:1100px){
+  #sec-vendedores .vend-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+}
+@media(max-width:640px){
+  #sec-vendedores .vend-grid{grid-template-columns:1fr}
+}
+/* vg genérico (detalle centros) */
 .vg{margin-bottom:16px}
 .vg-hdr{background:var(--navy);color:#6b93be;font-size:10px;font-weight:700;padding:7px 13px;border-radius:8px 8px 0 0;text-transform:uppercase;letter-spacing:.09em;font-family:'Sora',sans-serif}
 .vg-body{border:1px solid var(--bd);border-top:none;border-radius:0 0 8px 8px;overflow:hidden}
@@ -255,15 +284,20 @@ select{padding:5px 8px;border:1px solid var(--bd);border-radius:6px;font-size:12
       <select id="sv-month" onchange="renderVendedores()"></select>
     </div>
   </div>
-  <div id="vend-body"></div>
-  <div class="card" style="margin-top:14px">
+  <div class="vend-block">
+    <div class="vend-period" id="vend-period-label" style="display:none"></div>
+    <div id="vend-body" class="vend-grid"></div>
+  </div>
+  <div class="card vend-block" style="margin-top:14px">
     <div class="card-hdr" style="padding:12px 15px 8px">
       <div>
         <div class="card-title">Acumulado por vendedor (desde enero)</div>
         <div class="card-sub" id="vend-ytd-sub">Suma de ventas reales de enero al mes seleccionado</div>
       </div>
     </div>
-    <div class="card-body" style="padding:0 15px 15px" id="vend-ytd-body"></div>
+    <div class="card-body" style="padding:0 12px 14px">
+      <div id="vend-ytd-body" class="vend-grid"></div>
+    </div>
   </div>
 </section>
  
@@ -729,32 +763,59 @@ function sumVendorsYtd(year, endMonth) {
   }
   return acc;
 }
+function renderVendorShareCell(pctNum) {
+  if (pctNum == null || isNaN(pctNum)) return '<td class="vright">\u2014</td>';
+  var w = Math.max(4, Math.min(100, pctNum));
+  return '<td class="vright"><div class="vshare"><div class="vbar-wrap"><div class="vbar" style="width:' + w.toFixed(1) + '%"></div></div><span>' + w.toFixed(1) + '%</span></div></td>';
+}
 function renderVendorGroup(c, vlist, opts) {
   opts = opts || {};
   var totalC = vlist.reduce(function(s, v) { return s + (v.real || 0); }, 0);
+  var cols = opts.withYoy ? 4 : 3;
   var rows = vlist.length ? vlist.map(function(v) {
-    var r = v.real || 0, pct = totalC > 0 ? (r / totalC * 100).toFixed(1) : '\u2014';
+    var r = v.real || 0, pctNum = totalC > 0 ? (r / totalC * 100) : null;
     var yoy = v.yoyRealPct != null ? v.yoyRealPct : (opts.withYoy ? calcVendorYoy(opts.year, opts.month, c, v.name, r) : null);
     var yc = yoy != null ? (yoy >= 0 ? 'pill-g' : 'pill-r') : 'pill-n';
-    return '<tr><td>' + (v.name || '\u2014') + '</td><td class="vnum">' + fmtE(r) + '</td><td class="vright">' + pct + ' %</td>' +
+    var nm = (v.name || '\u2014').replace(/"/g, '&quot;');
+    return '<tr><td class="vname" title="' + nm + '">' + (v.name || '\u2014') + '</td><td class="vnum">' + fmtE(r) + '</td>' + renderVendorShareCell(pctNum) +
       (opts.withYoy ? '<td class="vright"><span class="pill ' + yc + '">' + (yoy != null ? sgn(yoy) + yoy.toFixed(1) + '%' : '\u2014') + '</span></td>' : '') + '</tr>';
-  }).join('') : '<tr><td colspan="' + (opts.withYoy ? 4 : 3) + '" class="empty-msg">Sin desglose disponible</td></tr>';
+  }).join('') : '<tr><td colspan="' + cols + '" class="empty-msg">Sin desglose</td></tr>';
+  if (vlist.length) {
+    rows += '<tr class="vrow-total"><td class="vname">Total centro</td><td class="vnum">' + fmtE(totalC) + '</td><td class="vright">100 %</td>' +
+      (opts.withYoy ? '<td class="vright">\u2014</td>' : '') + '</tr>';
+  }
   var div = document.createElement('div'); div.className = 'vg';
-  div.innerHTML = '<div class="vg-hdr">' + (CL[c] || c) + (opts.subtitle ? ' \u00b7 ' + opts.subtitle : '') + '</div><div class="vg-body"><table class="vtable" style="margin:0"><tr><th>Vendedor</th><th style="text-align:right">' + (opts.colLabel || 'Real') + '</th><th style="text-align:right">% Centro</th>' +
-    (opts.withYoy ? '<th style="text-align:right">YoY</th>' : '') + '</tr>' + rows + '</table></div>';
+  var colgroup = opts.withYoy
+    ? '<colgroup><col><col><col><col></colgroup>'
+    : '<colgroup><col><col><col></colgroup>';
+  div.innerHTML = '<div class="vg-hdr"><span class="vg-title">' + (CL[c] || c) + '</span><span class="vg-sum">' + fmtE(totalC) + '</span></div><div class="vg-body"><table class="vtable">' + colgroup + '<thead><tr><th>Vendedor</th><th style="text-align:right">' + (opts.colLabel || 'Real') + '</th><th style="text-align:right">%</th>' +
+    (opts.withYoy ? '<th style="text-align:right">YoY</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
   return div;
+}
+function appendVendorCenters(container, ORDER, getList, opts) {
+  container.className = 'vend-grid';
+  container.innerHTML = '';
+  ORDER.forEach(function(c) {
+    var raw = getList(c).slice().sort(function(a, b) { return (b.real || 0) - (a.real || 0); });
+    if (!raw.length) return;
+    container.appendChild(renderVendorGroup(c, raw, opts));
+  });
+  if (!container.children.length) container.innerHTML = '<div class="empty-msg">Sin desglose disponible</div>';
 }
 function renderVendedores() {
   if (!D) return;
   var year = parseInt(selVal('sv-year') || new Date().getFullYear()), monthSel = selVal('sv-month'), cm = getComMes();
   var body = document.getElementById('vend-body'), ytdBody = document.getElementById('vend-ytd-body'), ytdSub = document.getElementById('vend-ytd-sub');
+  var periodLbl = document.getElementById('vend-period-label');
   body.innerHTML = '';
-  if (ytdBody) ytdBody.innerHTML = '';
+  if (ytdBody) { ytdBody.innerHTML = ''; ytdBody.className = 'vend-grid'; }
+  if (periodLbl) { periodLbl.style.display = 'none'; periodLbl.textContent = ''; }
 
   var ORDER = ['CENTRAL','ALCARRAS','ALMOZARA','CORONA'];
   var endM = monthSel === 'acumulado' ? (year === cm.year ? cm.month : 12) : parseInt(monthSel, 10);
 
   if (monthSel === 'acumulado') {
+    body.className = 'vend-grid';
     body.innerHTML = '<div class="empty-msg" style="padding:16px 20px">Seleccione un mes concreto para ver la venta por vendedor de ese periodo. El acumulado desde enero aparece en el cuadro inferior.</div>';
   } else {
   var month = parseInt(monthSel, 10);
@@ -762,13 +823,14 @@ function renderVendedores() {
   var hasMonth = ORDER.some(function(c) { return (byC[c] || []).length > 0; });
 
   if (!hasMonth) {
+    body.className = 'vend-grid';
     body.innerHTML = '<div class="empty-msg" style="padding:20px">Sin desglose por vendedor para ' + MN[month - 1] + ' ' + year + '. Los meses se guardan autom\u00e1ticamente cuando el extractor procesa el informe ERP de ese periodo.</div>';
   } else {
-    var monthLabel = MN[month - 1] + ' ' + year;
-    ORDER.forEach(function(c) {
-      var raw = (byC[c] || []).slice().sort(function(a, b) { return (b.real || 0) - (a.real || 0); });
-      body.appendChild(renderVendorGroup(c, raw, {year: year, month: month, withYoy: true, subtitle: monthLabel, colLabel: 'Real mes'}));
-    });
+    if (periodLbl) {
+      periodLbl.textContent = 'Desglose mensual \u00b7 ' + MN[month - 1] + ' ' + year;
+      periodLbl.style.display = 'block';
+    }
+    appendVendorCenters(body, ORDER, function(c) { return byC[c] || []; }, {year: year, month: month, withYoy: true, colLabel: 'Real mes'});
   }
   }
 
@@ -777,12 +839,12 @@ function renderVendedores() {
     var ytd = sumVendorsYtd(year, endM);
     var ytdHas = ORDER.some(function(c) { return Object.keys(ytd[c] || {}).length > 0; });
     if (!ytdHas) {
+      ytdBody.className = '';
       ytdBody.innerHTML = '<div class="empty-msg" style="padding:12px 0">Sin datos acumulados de vendedores para ' + year + ' (se rellenan mes a mes con cada actualizaci\u00f3n del extractor).</div>';
     } else {
-      ORDER.forEach(function(c) {
-        var entries = Object.keys(ytd[c] || {}).map(function(n) { return {name: n, real: ytd[c][n]}; }).sort(function(a, b) { return b.real - a.real; });
-        ytdBody.appendChild(renderVendorGroup(c, entries, {colLabel: 'Acum. Ene\u2013' + MS[endM - 1], subtitle: year}));
-      });
+      appendVendorCenters(ytdBody, ORDER, function(c) {
+        return Object.keys(ytd[c] || {}).map(function(n) { return {name: n, real: ytd[c][n]}; });
+      }, {colLabel: 'Acum. Ene\u2013' + MS[endM - 1]});
     }
   }
 }
