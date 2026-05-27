@@ -328,7 +328,7 @@ function getGlobalKPI(year, month) {
   var cm = getComMes();
   if (year === cm.year && month === cm.month) {
     var g = (D.kpis || {}).global || {};
-    return {real: g.real || 0, budget: g.budget || 0, projection: g.projection || 0, pace: g.pace || 0, varProyVsBudget: g.varProyVsBudget || 0, daysElapsed: g.daysElapsed || 0, daysTotal: g.daysTotal || 0, isCurrent: true};
+    return {real: g.real || 0, budget: g.budget || 0, projection: g.projection || 0, pace: g.pace || 0, varProyVsBudget: g.varProyVsBudget || 0, daysElapsed: g.daysElapsed || 0, daysTotal: g.daysTotal || 0, daysRemainingFromToday: g.daysRemainingFromToday || 0, isCurrent: true};
   }
   var me = getMonthEntry(year, month);
   if (!me) return null;
@@ -357,13 +357,19 @@ function getPrevYearVal(center, year, month) {
  
 // ── Rolling ───────────────────────────────────────────────────────────────────
 function calcCenterRolling(center) {
-  var hist = (D.historical || {})[center] || {}, all = [];
+  var hist = (D.historical || {})[center] || {};
+  var all = [];
   Object.keys(hist).sort().forEach(function(yr) {
-    (hist[yr] || []).forEach(function(v, mi) { if (v != null) all.push({year: parseInt(yr), month: mi + 1, val: v}); });
+    var arr = hist[yr] || [];
+    for (var mi = 0; mi < 12; mi++) {
+      all.push({year: parseInt(yr), month: mi + 1, val: arr[mi] != null ? arr[mi] : null});
+    }
   });
   var rolling = [];
   for (var i = 11; i < all.length; i++) {
-    var w = all.slice(i - 11, i + 1), val = w.reduce(function(s, x) { return s + x.val; }, 0);
+    var w = all.slice(i - 11, i + 1);
+    if (w.some(function(x) { return x.val == null; })) continue;
+    var val = w.reduce(function(s, x) { return s + x.val; }, 0);
     rolling.push({label: all[i].year + '-' + String(all[i].month).padStart(2, '0'), value: Math.round(val)});
   }
   return rolling;
@@ -417,9 +423,9 @@ function renderBadge() {
   if (ld.indexOf('-') > -1) { var p = ld.split('-'); ds = p[2] + '/' + p[1] + '/' + p[0]; }
   var ts = meta.lastRunTs || '', ss = ts;
   try { var sd = new Date(ts); if (!isNaN(sd)) ss = sd.toLocaleDateString('es-ES') + ' ' + sd.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'}); } catch(e) {}
-  var g = (D.kpis || {}).global || {}, de = g.daysElapsed || 0, dt = g.daysTotal || 0;
+  var g = (D.kpis || {}).global || {}, de = g.daysElapsed || 0, dt = g.daysTotal || 0, dr = g.daysRemainingFromToday || 0;
   document.getElementById('badge-date').textContent = 'Datos a fecha: ' + ds;
-  document.getElementById('badge-days').textContent = (meta.comercialMonthLabel || '') + ' \u00b7 D\u00eda ' + de + ' de ' + dt;
+  document.getElementById('badge-days').textContent = (meta.comercialMonthLabel || '') + ' \u00b7 D\u00eda ' + de + ' de ' + dt + ' \u00b7 Restantes: ' + dr;
   document.getElementById('badge-sync').textContent = 'Sync: ' + ss;
 }
  
@@ -472,10 +478,64 @@ function renderEvoChart() {
   });
 }
  
+function calcGlobalRolling12m() {
+  // Calcula rolling 12m en el frontend para evitar desalineaciones por meses null.
+  if (!D) return [];
+  var hist = ((D.historical || {}).TOTAL) || {};
+  var ser = ((D.series || {}).monthly) || {};
+  var cm = getComMes();
+
+  var yearsObj = {};
+  Object.keys(hist).forEach(function(y) { if (y) yearsObj[y] = true; });
+  Object.keys(ser).forEach(function(y) { if (y) yearsObj[y] = true; });
+
+  var years = Object.keys(yearsObj).map(Number).filter(Boolean).sort(function(a, b) { return a - b; });
+  var serMap = {};
+  years.forEach(function(y) {
+    var arr = ser[String(y)] || ser[y] || [];
+    var mm = {};
+    (arr || []).forEach(function(e) {
+      if (e && e.month != null) mm[parseInt(e.month, 10)] = e;
+    });
+    serMap[y] = mm;
+  });
+
+  var months = [];
+  years.forEach(function(y) {
+    var hArr = hist[String(y)] || hist[y] || [];
+    var mmMap = serMap[y] || {};
+    for (var m = 1; m <= 12; m++) {
+      var v = (hArr && hArr[m - 1] != null) ? hArr[m - 1] : null;
+      var me = mmMap[m];
+      if (me) {
+        // Mes en curso: usar proyección de cierre si existe.
+        if (y === cm.year && m === cm.month) {
+          if (me.projection != null) v = me.projection;
+          else if (me.real != null) v = me.real;
+        } else {
+          if (me.real != null) v = me.real;
+          else if (me.projection != null) v = me.projection;
+        }
+      }
+      months.push({year: y, month: m, val: v});
+    }
+  });
+
+  var rolling = [];
+  for (var i = 11; i < months.length; i++) {
+    var w = months.slice(i - 11, i + 1);
+    if (w.some(function(x) { return x.val == null; })) continue;
+    var sum = w.reduce(function(s, x) { return s + x.val; }, 0);
+    var yy = months[i].year, mm = months[i].month;
+    rolling.push({label: yy + '-' + String(mm).padStart(2, '0'), value: Math.round(sum)});
+  }
+  return rolling;
+}
+
 // ── Rolling chart ─────────────────────────────────────────────────────────────
 function renderRolling() {
   if (!D) return;
-  var rolling = (D.series || {}).rolling || [], monthSel = selVal('sr-month'), year = parseInt(selVal('sr-year') || new Date().getFullYear()), cm = getComMes(), curYear = year, curMonth;
+  var rolling = calcGlobalRolling12m(), monthSel = selVal('sr-month'), year = parseInt(selVal('sr-year') || new Date().getFullYear()), cm = getComMes(), curYear = year, curMonth;
   if (monthSel === 'acumulado') { curYear = cm.year; curMonth = cm.month; } else { curMonth = parseInt(monthSel); }
   var prevYear = curYear - 1, curVal = getRollingVal(rolling, curYear, curMonth), prevVal = getRollingVal(rolling, prevYear, curMonth);
   document.getElementById('rl-cur-lbl').textContent = 'Rolling ' + MS[curMonth - 1] + '-' + curYear;
@@ -488,13 +548,20 @@ function renderRolling() {
     dEl.className = 'rdelta ' + (delta >= 0 ? 'pos' : 'neg');
     dEl.textContent = sgn(delta) + fmt(delta) + ' \u20ac (' + sgn(pct) + pct.toFixed(1) + '%)';
   } else { dEl.className = 'rdelta'; dEl.textContent = '\u2014'; }
-  var labels = rolling.map(function(r) { return r.label || ''; }), values = rolling.map(function(r) { return r.value || 0; });
-  var tickL = labels.map(function(l) { var p = l.split('-'); return p[1] === '01' ? p[0] : ''; });
+  var labels = rolling.map(function(r) { return r.label || ''; });
+  var values = rolling.map(function(r) { return r && r.value != null ? r.value : null; });
+  // Mostramos la etiqueta del mes en TODO punto (Abr, May, etc.)
+  var tickL = labels.map(function(l) {
+    var p = (l || '').split('-');
+    if (p.length !== 2) return '';
+    var mm = parseInt(p[1], 10);
+    return MS[mm - 1] || '';
+  });
   var ctx = document.getElementById('chart-roll'); if (!ctx) return;
   if (chartRoll) chartRoll.destroy();
   chartRoll = new Chart(ctx, {
     type: 'line',
-    data: {labels: labels, datasets: [{data: values, borderColor: '#185fa5', backgroundColor: 'rgba(24,95,165,.07)', fill: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: '#185fa5', tension: .4}]},
+    data: {labels: labels, datasets: [{data: values, borderColor: '#185fa5', backgroundColor: 'rgba(24,95,165,.07)', fill: true, borderWidth: 2, pointRadius: tickL.map(function(t, i) { return values[i] == null ? 0 : (t ? 3 : 0); }), pointHoverRadius: 6, pointHoverBackgroundColor: '#185fa5', tension: .4}]},
     options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}, tooltip: {callbacks: {
       title: function(items) { var l = items[0].label, p = l.split('-'); return p.length === 2 ? 'Rolling 12m \u00b7 ' + MS[parseInt(p[1]) - 1] + ' ' + p[0] : 'Rolling 12m \u00b7 ' + l; },
       label: function(item) { return '  ' + fmtE(item.raw); }
@@ -524,7 +591,17 @@ function renderCentros() {
     var isCur = kpi && kpi.isCurrent, vlist = isCur ? (D.vendors || {})[c] || [] : [];
     var vrows = vlist.length ? vlist.map(function(v) { var pct = real > 0 ? (v.real / real * 100).toFixed(1) : '\u2014'; return '<tr><td>' + (v.name || '\u2014') + '</td><td class="vnum">' + fmtE(v.real) + '</td><td class="vright">' + pct + ' %</td></tr>'; }).join('') : '<tr><td colspan="3" class="empty-msg">' + (isCur ? 'Sin desglose' : 'Solo mes actual') + '</td></tr>';
     var isExp = detailState[c] || false;
-    var cRolling = calcCenterRolling(c), cCur = cRolling.length ? cRolling[cRolling.length - 1].value : null, cPrev = cRolling.length >= 13 ? cRolling[cRolling.length - 13].value : null, cDelta = cCur != null && cPrev != null ? cCur - cPrev : null;
+    var cRolling = calcCenterRolling(c), cCur = cRolling.length ? cRolling[cRolling.length - 1].value : null, cPrev = null;
+    if (cRolling.length) {
+      var lastLbl = cRolling[cRolling.length - 1].label || '';
+      var p = lastLbl.split('-');
+      if (p.length === 2) {
+        var prevYear = parseInt(p[0], 10) - 1;
+        var prevLbl = prevYear + '-' + p[1];
+        for (var ri = 0; ri < cRolling.length; ri++) { if (cRolling[ri].label === prevLbl) { cPrev = cRolling[ri].value; break; } }
+      }
+    }
+    var cDelta = cCur != null && cPrev != null ? cCur - cPrev : null;
     var cDeltaHtml = cDelta != null ? '&nbsp;<span class="' + (cDelta >= 0 ? 'cv-up' : 'cv-dn') + '">' + sgn(cDelta) + fmtE(Math.abs(cDelta)) + '</span>' : '';
     var div = document.createElement('div'); div.className = 'ccard';
     div.innerHTML =
@@ -616,7 +693,12 @@ function renderHistTable(ckey) {
     var mv = r.mv, year = r.year;
     var mvFixed = mv.map(function(v, mi) {
       var m = mi + 1;
-      if (year === cm.year && m === cm.month) { var me = getMonthEntry(year, m); return me ? (me.projection || me.real || v) : v; }
+      if (year === cm.year) {
+        var me = getMonthEntry(year, m);
+        if (me && (v == null || m === cm.month)) {
+          return (me.projection != null ? me.projection : (me.real != null ? me.real : v));
+        }
+      }
       return v;
     });
     var total = mvFixed.reduce(function(s, v) { return s + (v || 0); }, 0);

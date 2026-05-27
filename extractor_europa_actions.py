@@ -526,17 +526,19 @@ def append_to_sheets(erp_data: dict):
 #  GENERACIÓN data.json
 # ─────────────────────────────────────────────────────────────────────────────
 def build_rolling(hist_total: dict) -> list:
-    """Calcula rolling 12m mensual desde todos los datos históricos disponibles."""
+    """Calcula rolling 12m mensual (solo cuando hay 12 meses con valor)."""
     all_months = []
     for year in sorted(hist_total.keys()):
-        months = hist_total[year]
-        for mi, val in enumerate(months):
-            if val is not None:
-                all_months.append((year, mi + 1, val))
+        months = hist_total[year] or []
+        for mi in range(12):
+            val = months[mi] if mi < len(months) else None
+            all_months.append((year, mi + 1, val))
 
     rolling = []
     for i in range(11, len(all_months)):
         window = all_months[i - 11 : i + 1]
+        if any(x[2] is None for x in window):
+            continue
         val = sum(x[2] for x in window)
         y, m, _ = all_months[i]
         rolling.append({"label": f"{y}-{m:02d}", "value": round(val)})
@@ -645,6 +647,44 @@ def generar_data_json(erp_data: dict, output_path: str = "data.json"):
     vend  = erp_data["por_vendedor"]
     total = erp_data["total"]
 
+    # ── Preservar histórico previo ─────────────────────────────────────────
+    # Objetivo: nunca "borrar" meses históricos (no sobrescribir con None).
+    existing = {}
+    try:
+        p = Path(output_path)
+        if p.exists():
+            existing = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"  Aviso: no se pudo leer historial previo ({output_path}): {e}")
+
+    existing_historical = (existing.get("historical") or {})
+
+    def merge_preserve_nulls(old_arr, new_arr):
+        """Devuelve new_arr, pero rellenando Nones con valores previos."""
+        if not isinstance(old_arr, list) or not isinstance(new_arr, list):
+            return new_arr
+        out = list(new_arr)
+        for i in range(min(12, len(out), len(old_arr))):
+            if out[i] is None and old_arr[i] is not None:
+                out[i] = old_arr[i]
+        return out
+
+    def merge_year_map(old_map: dict, new_map: dict) -> dict:
+        """Une años preservando valores previos cuando el nuevo es None."""
+        out = {k: list(v) for k, v in (new_map or {}).items() if isinstance(v, list)}
+        for ys, old_arr in (old_map or {}).items():
+            if not isinstance(old_arr, list):
+                continue
+            if ys not in out:
+                out[ys] = list(old_arr)
+            else:
+                out[ys] = merge_preserve_nulls(old_arr, out[ys])
+
+        def sort_key(k):
+            return int(k) if str(k).isdigit() else k
+
+        return {k: out[k] for k in sorted(out.keys(), key=sort_key)}
+
     # Determinar mes comercial
     com_year, com_month = get_commercial_month(fd)
 
@@ -691,6 +731,17 @@ def generar_data_json(erp_data: dict, output_path: str = "data.json"):
     # Mes actual en curso
     hist_total_raw.setdefault(com_year, [None] * 12)
     hist_total_raw[com_year][com_month - 1] = round(total)
+
+    # Preservar valores previos (no sobrescribir con None)
+    old_total_hist = existing_historical.get("TOTAL") or {}
+    for ys, old_arr in old_total_hist.items():
+        if not str(ys).isdigit():
+            continue
+        y = int(ys)
+        if y not in hist_total_raw:
+            hist_total_raw[y] = list(old_arr)
+        else:
+            hist_total_raw[y] = merge_preserve_nulls(old_arr, hist_total_raw[y])
     # Convertir a str keys para build functions
     hist_total_str = {str(k): v for k, v in hist_total_raw.items()}
 
@@ -721,6 +772,19 @@ def generar_data_json(erp_data: dict, output_path: str = "data.json"):
         com_year, com_month, {**real, "TOTAL": total}, projection
     )
 
+    # Preservar histórico final (frontend usa D.historical)
+    historical_total = build_hist_total(
+        com_year,
+        com_month,
+        {com_year: {com_month: {c: real.get(c, 0) for c in real if c != "TOTAL"}}},
+    )
+    historical_total = merge_year_map(old_total_hist, historical_total)
+
+    hist_central = merge_year_map(existing_historical.get("CENTRAL") or {}, hist_central)
+    hist_alcarras = merge_year_map(existing_historical.get("ALCARRAS") or {}, hist_alcarras)
+    hist_almozara = merge_year_map(existing_historical.get("ALMOZARA") or {}, hist_almozara)
+    hist_corona = merge_year_map(existing_historical.get("CORONA") or {}, hist_corona)
+
     # ── Ensamblar JSON ─────────────────────────────────────────────────────────
     data = {
         "meta": {
@@ -750,8 +814,7 @@ def generar_data_json(erp_data: dict, output_path: str = "data.json"):
             c: vend.get(c, []) for c in ["CENTRAL","ALCARRAS","ALMOZARA","CORONA"]
         },
         "historical": {
-            "TOTAL":    build_hist_total(com_year, com_month,
-                            {com_year: {com_month: {c: real.get(c,0) for c in real if c!="TOTAL"}}}),
+            "TOTAL":    historical_total,
             "CENTRAL":  hist_central,
             "ALCARRAS": hist_alcarras,
             "ALMOZARA": hist_almozara,
