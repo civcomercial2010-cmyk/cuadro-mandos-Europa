@@ -311,6 +311,42 @@ function getMonthEntry(year, month) {
   for (var i = 0; i < arr.length; i++) { if (arr[i].month === month) return arr[i]; }
   return null;
 }
+function getHistVal(centerKey, year, month) {
+  var yr = (D.historical || {})[centerKey] || {};
+  var arr = yr[year] || yr[String(year)] || [];
+  if (month < 1 || month > 12) return null;
+  var v = arr[month - 1];
+  return v != null ? v : null;
+}
+/** Une series.monthly con historical cuando real/proyección vienen null en series. */
+function resolveMonthFields(center, year, month) {
+  var cm = getComMes(), me = getMonthEntry(year, month);
+  var histKey = center === 'all' ? 'TOTAL' : center;
+  var hVal = getHistVal(histKey, year, month);
+  var real = null, proj = null, budget = null;
+  if (me) {
+    if (center === 'all') {
+      real = me.real;
+      proj = me.projection;
+      budget = me.budget;
+    } else {
+      var bc = (me.byCenter || {})[center] || {};
+      real = bc.real;
+      proj = bc.projection;
+      budget = bc.budget;
+    }
+  }
+  if (real == null && hVal != null) real = hVal;
+  if (proj == null) {
+    if (year === cm.year && month === cm.month && me && me.projection != null) proj = me.projection;
+    else if (hVal != null) proj = hVal;
+    else if (real != null) proj = real;
+  }
+  if (budget == null && me) {
+    budget = center === 'all' ? me.budget : (((me.byCenter || {})[center] || {}).budget);
+  }
+  return {real: real, projection: proj, budget: budget != null ? budget : 0};
+}
  
 // ── KPI getters ───────────────────────────────────────────────────────────────
 function getCenterKPI(center, year, month) {
@@ -319,9 +355,9 @@ function getCenterKPI(center, year, month) {
     var kpi = ((D.kpis || {}).byCenter || {})[center] || {};
     return {real: kpi.real || 0, budget: kpi.budget || 0, projection: kpi.projection || 0, pace: kpi.pace || 0, varProyVsBudget: kpi.varProyVsBudget || 0, cumplPct: kpi.cumplPct || 0, isCurrent: true};
   }
-  var me = getMonthEntry(year, month);
-  if (!me) return null;
-  var bc = me.byCenter || {}, cd = bc[center] || {}, real = cd.real || 0, budget = cd.budget || 0, proj = cd.projection || real;
+  var f = resolveMonthFields(center, year, month);
+  if (f.real == null && f.projection == null) return null;
+  var real = f.real || 0, budget = f.budget || 0, proj = f.projection != null ? f.projection : real;
   return {real: real, budget: budget, projection: proj, pace: null, varProyVsBudget: proj - budget, cumplPct: budget > 0 ? proj / budget * 100 : null, isCurrent: false};
 }
 function getGlobalKPI(year, month) {
@@ -330,9 +366,9 @@ function getGlobalKPI(year, month) {
     var g = (D.kpis || {}).global || {};
     return {real: g.real || 0, budget: g.budget || 0, projection: g.projection || 0, pace: g.pace || 0, varProyVsBudget: g.varProyVsBudget || 0, daysElapsed: g.daysElapsed || 0, daysTotal: g.daysTotal || 0, daysRemainingFromToday: g.daysRemainingFromToday || 0, isCurrent: true};
   }
-  var me = getMonthEntry(year, month);
-  if (!me) return null;
-  var real = me.real || 0, budget = me.budget || 0, proj = me.projection || real;
+  var f = resolveMonthFields('all', year, month);
+  if (f.real == null && f.projection == null) return null;
+  var real = f.real || 0, budget = f.budget || 0, proj = f.projection != null ? f.projection : real;
   return {real: real, budget: budget, projection: proj, pace: null, varProyVsBudget: proj - budget, isCurrent: false};
 }
 function computeAcumulado(year, center) {
@@ -344,15 +380,10 @@ function computeAcumulado(year, center) {
   return {real: real, budget: budget, projection: proj, pace: null, varProyVsBudget: proj - budget};
 }
 function getPrevYearVal(center, year, month) {
-  var prev = year - 1, me = getMonthEntry(prev, month);
-  if (me) {
-    if (center === 'all') return me.real || 0;
-    var bc = me.byCenter || {}, cd = bc[center] || {};
-    return cd.real || 0;
-  }
-  var key = center === 'all' ? 'TOTAL' : center;
-  var hist = (D.historical || {})[key] || {}, yr = hist[String(prev)] || [];
-  return yr[month - 1] != null ? yr[month - 1] : null;
+  var prev = year - 1, f = resolveMonthFields(center, prev, month);
+  if (f.real != null) return f.real;
+  if (f.projection != null) return f.projection;
+  return getHistVal(center === 'all' ? 'TOTAL' : center, prev, month);
 }
  
 // ── Rolling ───────────────────────────────────────────────────────────────────
@@ -452,7 +483,11 @@ function renderKPIs() {
 // ── Evolución chart ────────────────────────────────────────────────────────────
 function buildMonthArrForChart(year, field) {
   var arr = new Array(12).fill(null);
-  getMonthArr(year).forEach(function(m) { var idx = (m.month || 1) - 1; if (idx >= 0 && idx < 12) { var v = m[field]; arr[idx] = (v != null ? Math.round(v / 1000) : null); } });
+  for (var m = 1; m <= 12; m++) {
+    var f = resolveMonthFields('all', year, m);
+    var v = field === 'budget' ? f.budget : (field === 'real' ? f.real : f.projection);
+    if (v != null) arr[m - 1] = Math.round(v / 1000);
+  }
   return arr;
 }
 function renderEvoChart() {
