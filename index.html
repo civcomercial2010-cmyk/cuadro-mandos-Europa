@@ -922,6 +922,38 @@ function renderHistTable(ckey) {
     return total;
   }
 
+  function getLastClosedMonth() {
+    if (cm.month <= 1) return {year: cm.year - 1, month: 12};
+    return {year: cm.year, month: cm.month - 1};
+  }
+
+  /** Valor real de un mes cerrado (sin proyección del mes en curso). */
+  function resolveHistClosedValue(year, month, vHist) {
+    if (year === cm.year && month >= cm.month) return null;
+    if (ckey === 'TOTAL') {
+      var g = getGlobalKPI(year, month);
+      if (g && g.real != null) return g.real;
+    } else {
+      var ck = getCenterKPI(ckey, year, month);
+      if (ck && ck.real != null) return ck.real;
+    }
+    if (vHist != null) return vHist;
+    var f = resolveMonthFields(ckey === 'TOTAL' ? 'all' : ckey, year, month);
+    return f.real != null ? f.real : null;
+  }
+
+  function calcYtdClosed(year, throughMonth, mvArr) {
+    var total = 0, arr = Array.isArray(mvArr) ? mvArr : [];
+    for (var month = 1; month <= throughMonth; month++) {
+      var vHist = (month - 1) < arr.length ? arr[month - 1] : null;
+      var v = resolveHistClosedValue(year, month, vHist);
+      if (v != null) total += v;
+    }
+    return total;
+  }
+
+  var lastClosed = getLastClosedMonth();
+
   rows.forEach(function(r, ri) {
     var mvArr = Array.isArray(r.mv) ? r.mv : [];
     var year = r.year;
@@ -931,8 +963,17 @@ function renderHistTable(ckey) {
       mvFixed.push(resolveHistValue(year, month, vHist));
     }
     var total = mvFixed.reduce(function(s, v) { return s + (v || 0); }, 0);
-    var prevRow = rows[ri + 1], prevTotal = prevRow ? calcRowTotal(prevRow.year, prevRow.mv) : null;
-    var yoy = prevTotal != null && prevTotal > 0 ? (total - prevTotal) / prevTotal * 100 : null;
+    var yoy = null, yoyTitle = '';
+    if (year === cm.year) {
+      var ytdCur = calcYtdClosed(year, lastClosed.month, mvArr);
+      var prevMv = (hist[year - 1] || hist[String(year - 1)] || []);
+      var ytdPrev = calcYtdClosed(year - 1, lastClosed.month, prevMv);
+      if (ytdPrev > 0) yoy = (ytdCur - ytdPrev) / ytdPrev * 100;
+      yoyTitle = 'YoY acum. Ene\u2013' + MS[lastClosed.month - 1] + ' vs mismo periodo ' + (year - 1);
+    } else {
+      var prevRow = rows[ri + 1], prevTotal = prevRow ? calcRowTotal(prevRow.year, prevRow.mv) : null;
+      if (prevTotal != null && prevTotal > 0) yoy = (total - prevTotal) / prevTotal * 100;
+    }
     var yc = yoy != null ? (yoy >= 0 ? 'yp' : 'yn') : '', yt = yoy != null ? sgn(yoy) + yoy.toFixed(1) + '%' : '\u2014';
 
     html += '<tr class="' + (year === cm.year ? 'cy' : '') + '">' +
@@ -943,11 +984,11 @@ function renderHistTable(ckey) {
         return '<td>' + d + (isCurM ? '*' : '') + '</td>';
       }).join('') +
       '<td class="tot">' + (total >= 1000 ? Math.round(total / 1000) + 'k' : Math.round(total)) + '</td>' +
-      '<td class="' + yc + '">' + yt + '</td>' +
+      '<td class="' + yc + '"' + (yoyTitle ? ' title="' + yoyTitle + '"' : '') + '>' + yt + '</td>' +
       '</tr>';
   });
   table.innerHTML = html;
-  nota.textContent = '* Mes en curso = proyecci\u00f3n de cierre. Valores en miles de euros (k).';
+  nota.textContent = '* Mes en curso = proyecci\u00f3n de cierre. Valores en miles de euros (k). YoY del a\u00f1o en curso: acumulado Ene\u2013' + MS[lastClosed.month - 1] + ' vs mismo periodo del a\u00f1o anterior.';
 }
  
 // ── Init ──────────────────────────────────────────────────────────────────────
