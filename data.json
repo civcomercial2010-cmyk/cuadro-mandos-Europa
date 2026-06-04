@@ -1,60 +1,60 @@
 {
   "meta": {
-    "lastLoadDate": "2026-06-03",
-    "lastRunTs": "2026-06-03T21:54:48",
+    "lastLoadDate": "2026-06-04",
+    "lastRunTs": "2026-06-04T20:27:17",
     "comercialMonth": "2026-06",
     "comercialMonthLabel": "Junio 2026"
   },
   "kpis": {
     "global": {
-      "real": 95287.15,
+      "real": 103768.16,
       "budget": 407000,
-      "projection": 321594.13,
-      "pace": 11910.89,
-      "varProyVsBudget": -85405.87,
-      "pctProyBudget": 79.0,
-      "daysElapsed": 8,
+      "projection": 311304.48,
+      "pace": 11529.8,
+      "varProyVsBudget": -95695.52,
+      "pctProyBudget": 76.5,
+      "daysElapsed": 9,
       "daysTotal": 27
     },
     "byCenter": {
       "CENTRAL": {
-        "real": 23282.16,
+        "real": 22729.27,
         "budget": 109000,
-        "projection": 78577.29,
-        "pace": 2910.27,
-        "varProyVsBudget": -30422.71,
-        "cumplPct": 72.1,
-        "daysElapsed": 8,
+        "projection": 68187.81,
+        "pace": 2525.47,
+        "varProyVsBudget": -40812.19,
+        "cumplPct": 62.6,
+        "daysElapsed": 9,
         "daysTotal": 27
       },
       "ALCARRAS": {
-        "real": 46239.68,
+        "real": 46523.98,
         "budget": 179000,
-        "projection": 156058.92,
-        "pace": 5779.96,
-        "varProyVsBudget": -22941.08,
-        "cumplPct": 87.2,
-        "daysElapsed": 8,
+        "projection": 139571.94,
+        "pace": 5169.33,
+        "varProyVsBudget": -39428.06,
+        "cumplPct": 78.0,
+        "daysElapsed": 9,
         "daysTotal": 27
       },
       "ALMOZARA": {
-        "real": 9909.92,
+        "real": 12903.31,
         "budget": 39000,
-        "projection": 33445.98,
-        "pace": 1238.74,
-        "varProyVsBudget": -5554.02,
-        "cumplPct": 85.8,
-        "daysElapsed": 8,
+        "projection": 38709.93,
+        "pace": 1433.7,
+        "varProyVsBudget": -290.07,
+        "cumplPct": 99.3,
+        "daysElapsed": 9,
         "daysTotal": 27
       },
       "CORONA": {
-        "real": 15855.39,
+        "real": 21611.6,
         "budget": 80000,
-        "projection": 53511.94,
-        "pace": 1981.92,
-        "varProyVsBudget": -26488.06,
-        "cumplPct": 66.9,
-        "daysElapsed": 8,
+        "projection": 64834.8,
+        "pace": 2401.29,
+        "varProyVsBudget": -15165.2,
+        "cumplPct": 81.0,
+        "daysElapsed": 9,
         "daysTotal": 27
       }
     }
@@ -148,24 +148,24 @@
         },
         {
           "month": 6,
-          "real": 95287.15,
+          "real": 103768.16,
           "budget": 407000,
-          "projection": 321594.13,
+          "projection": 311304.48,
           "byCenter": {
             "CENTRAL": {
-              "real": 23282.16,
+              "real": 22729.27,
               "budget": 109000
             },
             "ALCARRAS": {
-              "real": 46239.68,
+              "real": 46523.98,
               "budget": 179000
             },
             "ALMOZARA": {
-              "real": 9909.92,
+              "real": 12903.31,
               "budget": 39000
             },
             "CORONA": {
-              "real": 15855.39,
+              "real": 21611.6,
               "budget": 80000
             }
           }
@@ -649,7 +649,7 @@
       },
       {
         "label": "2026-06",
-        "value": 3729006
+        "value": 3737487
       }
     ]
   },
@@ -657,49 +657,49 @@
     "CENTRAL": [
       {
         "name": "SARA",
-        "real": 6966.0
-      },
-      {
-        "name": "CECILIA MEZA",
-        "real": 0.0
+        "real": 7007.44
       },
       {
         "name": "ANTONIO LAHUERTA",
-        "real": 0.0
+        "real": 6942.15
       },
       {
-        "name": "J.J. IBAÑEZ",
-        "real": 0.0
+        "name": "CECILIA MEZA",
+        "real": 5099.17
+      },
+      {
+        "name": "NATALIA",
+        "real": 3680.51
       }
     ],
     "ALCARRAS": [
       {
-        "name": "GLORIA LOPEZ",
-        "real": 46101.0
+        "name": "ALBERT",
+        "real": 15758.68
       },
       {
         "name": "ENRIC CALVET",
-        "real": 12380.0
+        "real": 12623.97
       },
       {
         "name": "MARIA JESUS BENSENY",
-        "real": 9866.0
+        "real": 9906.62
       },
       {
-        "name": "ALBERT",
-        "real": 0.0
+        "name": "GLORIA LOPEZ",
+        "real": 8234.71
       }
     ],
     "ALMOZARA": [
       {
         "name": "BLANCA",
-        "real": 9910.0
+        "real": 12903.31
       }
     ],
     "CORONA": [
       {
         "name": "ROSA",
-        "real": 15855.39
+        "real": 21611.6
       }
     ]
   },
@@ -955,49 +955,49 @@
       "CENTRAL": [
         {
           "name": "SARA",
-          "real": 6966.0
-        },
-        {
-          "name": "CECILIA MEZA",
-          "real": 0.0
+          "real": 7007.44
         },
         {
           "name": "ANTONIO LAHUERTA",
-          "real": 0.0
+          "real": 6942.15
         },
         {
-          "name": "J.J. IBAÑEZ",
-          "real": 0.0
+          "name": "CECILIA MEZA",
+          "real": 5099.17
+        },
+        {
+          "name": "NATALIA",
+          "real": 3680.51
         }
       ],
       "ALCARRAS": [
         {
-          "name": "GLORIA LOPEZ",
-          "real": 46101.0
+          "name": "ALBERT",
+          "real": 15758.68
         },
         {
           "name": "ENRIC CALVET",
-          "real": 12380.0
+          "real": 12623.97
         },
         {
           "name": "MARIA JESUS BENSENY",
-          "real": 9866.0
+          "real": 9906.62
         },
         {
-          "name": "ALBERT",
-          "real": 0.0
+          "name": "GLORIA LOPEZ",
+          "real": 8234.71
         }
       ],
       "ALMOZARA": [
         {
           "name": "BLANCA",
-          "real": 9910.0
+          "real": 12903.31
         }
       ],
       "CORONA": [
         {
           "name": "ROSA",
-          "real": 15855.39
+          "real": 21611.6
         }
       ]
     }
@@ -1080,7 +1080,7 @@
         304680,
         272910,
         314501,
-        95287,
+        103768,
         null,
         null,
         null,
@@ -1166,7 +1166,7 @@
         107997,
         71514,
         66503,
-        23282,
+        22729,
         null,
         null,
         null,
@@ -1252,7 +1252,7 @@
         141522,
         155897,
         164812,
-        46240,
+        46524,
         null,
         null,
         null,
@@ -1296,7 +1296,7 @@
         20950,
         15560,
         33114,
-        9910,
+        12903,
         null,
         null,
         null,
@@ -1326,7 +1326,7 @@
         34211,
         29939,
         50072,
-        15855,
+        21612,
         null,
         null,
         null,
