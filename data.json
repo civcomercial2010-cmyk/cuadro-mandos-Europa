@@ -657,43 +657,43 @@
     "CENTRAL": [
       {
         "name": "SARA",
-        "real": 7600
-      },
-      {
-        "name": "ANTONIO LAHUERTA",
-        "real": 6902.48
+        "real": 6966.0
       },
       {
         "name": "CECILIA MEZA",
-        "real": 5099.17
+        "real": 0.0
       },
       {
-        "name": "NATALIA",
-        "real": 3680.51
+        "name": "ANTONIO LAHUERTA",
+        "real": 0.0
+      },
+      {
+        "name": "J.J. IBAÑEZ",
+        "real": 0.0
       }
     ],
     "ALCARRAS": [
       {
-        "name": "ALBERT",
-        "real": 15758.68
+        "name": "GLORIA LOPEZ",
+        "real": 46101.0
       },
       {
         "name": "ENRIC CALVET",
-        "real": 12380.17
+        "real": 12380.0
       },
       {
         "name": "MARIA JESUS BENSENY",
-        "real": 9866.12
+        "real": 9866.0
       },
       {
-        "name": "GLORIA LOPEZ",
-        "real": 8234.71
+        "name": "ALBERT",
+        "real": 0.0
       }
     ],
     "ALMOZARA": [
       {
         "name": "BLANCA",
-        "real": 9909.92
+        "real": 9910.0
       }
     ],
     "CORONA": [
@@ -704,159 +704,186 @@
     ]
   },
   "vendorsByMonth": {
-    "2026-06": {
+    "2026-01": {
       "CENTRAL": [
         {
-          "name": "SARA",
-          "real": 7600.0
-        },
-        {
           "name": "ANTONIO LAHUERTA",
-          "real": 6902.48
+          "real": 42936.0
         },
         {
           "name": "CECILIA MEZA",
-          "real": 5099.17
+          "real": 34359.0
         },
         {
-          "name": "NATALIA",
-          "real": 3680.51
+          "name": "J.J. IBAÑEZ",
+          "real": 1754.0
+        },
+        {
+          "name": "MARIA JOSE",
+          "real": 0.0
         }
       ],
       "ALCARRAS": [
         {
           "name": "ALBERT",
-          "real": 15758.68
-        },
-        {
-          "name": "ENRIC CALVET",
-          "real": 12380.17
+          "real": 70719.0
         },
         {
           "name": "MARIA JESUS BENSENY",
-          "real": 9866.12
+          "real": 49995.0
         },
         {
           "name": "GLORIA LOPEZ",
-          "real": 8234.71
+          "real": 38087.0
+        },
+        {
+          "name": "ENRIC CALVET",
+          "real": 35265.0
         }
       ],
       "ALMOZARA": [
         {
           "name": "BLANCA",
-          "real": 9909.92
+          "real": 23491.0
         }
       ],
-      "CORONA": [
-        {
-          "name": "ROSA",
-          "real": 15855.39
-        }
-      ]
+      "CORONA": []
     },
-    "2026-05": {
+    "2026-02": {
       "CENTRAL": [
         {
           "name": "ANTONIO LAHUERTA",
-          "real": 27774.38
+          "real": 41713.0
         },
         {
           "name": "CECILIA MEZA",
-          "real": 21549.59
+          "real": 40462.0
         },
         {
-          "name": "SARA",
-          "real": 13959.5
+          "name": "MARIA JOSE",
+          "real": 32115.0
         },
         {
-          "name": "ANTONIO / CECILIA",
-          "real": 2761.15
-        },
-        {
-          "name": "J.J. IBAÃ‘EZ",
-          "real": 458.68
+          "name": "J.J. IBAÑEZ",
+          "real": 7768.0
         }
       ],
       "ALCARRAS": [
         {
-          "name": "MARIA JESUS BENSENY",
-          "real": 49315.71
-        },
-        {
           "name": "ALBERT",
-          "real": 45932.24
-        },
-        {
-          "name": "ENRIC CALVET",
-          "real": 43787.6
+          "real": 62414.0
         },
         {
           "name": "GLORIA LOPEZ",
-          "real": 25776
+          "real": 54996.0
+        },
+        {
+          "name": "ENRIC CALVET",
+          "real": 53804.0
+        },
+        {
+          "name": "MARIA JESUS BENSENY",
+          "real": 50993.0
         }
       ],
       "ALMOZARA": [
         {
           "name": "BLANCA",
-          "real": 33114.07
+          "real": 31791.0
         }
       ],
-      "CORONA": [
+      "CORONA": []
+    },
+    "2026-03": {
+      "CENTRAL": [
         {
-          "name": "ROSA",
-          "real": 50071.91
+          "name": "ANTONIO LAHUERTA",
+          "real": 38383.0
+        },
+        {
+          "name": "CECILIA MEZA",
+          "real": 28611.0
+        },
+        {
+          "name": "MARIA JOSE",
+          "real": 25840.0
+        },
+        {
+          "name": "J.J. IBAÑEZ",
+          "real": 3196.0
         }
-      ]
+      ],
+      "ALCARRAS": [
+        {
+          "name": "ALBERT",
+          "real": 48600.0
+        },
+        {
+          "name": "MARIA JESUS BENSENY",
+          "real": 32107.0
+        },
+        {
+          "name": "GLORIA LOPEZ",
+          "real": 30784.0
+        },
+        {
+          "name": "ENRIC CALVET",
+          "real": 29726.0
+        }
+      ],
+      "ALMOZARA": [
+        {
+          "name": "BLANCA",
+          "real": 20950.0
+        }
+      ],
+      "CORONA": []
     },
     "2026-04": {
       "CENTRAL": [
         {
-          "name": "J.J. IBAÃ‘EZ",
-          "real": 18561.16
+          "name": "J.J. IBAÑEZ",
+          "real": 17686.0
         },
         {
           "name": "MARIA JOSE",
-          "real": 16923.98
+          "real": 16924.0
         },
         {
           "name": "CECILIA MEZA",
-          "real": 15633.06
+          "real": 15686.0
         },
         {
           "name": "ANTONIO LAHUERTA",
-          "real": 12215.71
+          "real": 12269.0
         },
         {
           "name": "SARA",
-          "real": 8073.56
-        },
-        {
-          "name": "ANTONIO / CECILIA",
-          "real": 106.61
+          "real": 8074.0
         }
       ],
       "ALCARRAS": [
         {
           "name": "ALBERT",
-          "real": 47823.96
+          "real": 47039.0
         },
         {
           "name": "MARIA JESUS BENSENY",
-          "real": 45903.77
+          "real": 44920.0
         },
         {
           "name": "GLORIA LOPEZ",
-          "real": 35429.71
+          "real": 35430.0
         },
         {
           "name": "ENRIC CALVET",
-          "real": 26739.63
+          "real": 26740.0
         }
       ],
       "ALMOZARA": [
         {
           "name": "BLANCA",
-          "real": 15559.52
+          "real": 15560.0
         }
       ],
       "CORONA": [
@@ -867,6 +894,110 @@
         {
           "name": "SARA",
           "real": 7414.9
+        }
+      ]
+    },
+    "2026-05": {
+      "CENTRAL": [
+        {
+          "name": "ANTONIO LAHUERTA",
+          "real": 32059.0
+        },
+        {
+          "name": "CECILIA MEZA",
+          "real": 22981.0
+        },
+        {
+          "name": "SARA",
+          "real": 14898.0
+        },
+        {
+          "name": "MARIA JOSE",
+          "real": 0.0
+        },
+        {
+          "name": "J.J. IBAÑEZ",
+          "real": 0.0
+        }
+      ],
+      "ALCARRAS": [
+        {
+          "name": "ALBERT",
+          "real": 50106.0
+        },
+        {
+          "name": "MARIA JESUS BENSENY",
+          "real": 49316.0
+        },
+        {
+          "name": "ENRIC CALVET",
+          "real": 43788.0
+        },
+        {
+          "name": "GLORIA LOPEZ",
+          "real": 25776.0
+        }
+      ],
+      "ALMOZARA": [
+        {
+          "name": "BLANCA",
+          "real": 33114.0
+        }
+      ],
+      "CORONA": [
+        {
+          "name": "ROSA",
+          "real": 50071.91
+        }
+      ]
+    },
+    "2026-06": {
+      "CENTRAL": [
+        {
+          "name": "SARA",
+          "real": 6966.0
+        },
+        {
+          "name": "CECILIA MEZA",
+          "real": 0.0
+        },
+        {
+          "name": "ANTONIO LAHUERTA",
+          "real": 0.0
+        },
+        {
+          "name": "J.J. IBAÑEZ",
+          "real": 0.0
+        }
+      ],
+      "ALCARRAS": [
+        {
+          "name": "GLORIA LOPEZ",
+          "real": 46101.0
+        },
+        {
+          "name": "ENRIC CALVET",
+          "real": 12380.0
+        },
+        {
+          "name": "MARIA JESUS BENSENY",
+          "real": 9866.0
+        },
+        {
+          "name": "ALBERT",
+          "real": 0.0
+        }
+      ],
+      "ALMOZARA": [
+        {
+          "name": "BLANCA",
+          "real": 9910.0
+        }
+      ],
+      "CORONA": [
+        {
+          "name": "ROSA",
+          "real": 15855.39
         }
       ]
     }

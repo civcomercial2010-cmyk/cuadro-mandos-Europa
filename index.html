@@ -775,35 +775,6 @@ function getVendorYtdEndMonth(year, monthSel, cm) {
   if (year === cm.year && endM >= cm.month) endM = Math.max(1, cm.month - 1);
   return endM;
 }
-function buildVendorShares(year, endMonth) {
-  var shareNum = {}, shareDen = {};
-  CENTERS.forEach(function(c) { shareNum[c] = {}; shareDen[c] = 0; });
-  for (var m = 1; m <= endMonth; m++) {
-    if (!hasVendorMonthData(year, m)) continue;
-    var byC = getVendorsByCenter(year, m);
-    CENTERS.forEach(function(c) {
-      var list = byC[c] || [];
-      if (!list.length) return;
-      var monthTot = list.reduce(function(s, v) { return s + (v.real || 0); }, 0);
-      shareDen[c] = (shareDen[c] || 0) + monthTot;
-      list.forEach(function(v) {
-        var n = (v.name || '').trim();
-        if (!n) return;
-        shareNum[c][n] = (shareNum[c][n] || 0) + (v.real || 0);
-      });
-    });
-  }
-  var shares = {};
-  CENTERS.forEach(function(c) {
-    shares[c] = {};
-    var den = shareDen[c] || 0;
-    if (den <= 0) return;
-    Object.keys(shareNum[c] || {}).forEach(function(n) {
-      shares[c][n] = shareNum[c][n] / den;
-    });
-  });
-  return shares;
-}
 function findVendorReal(vlist, name) {
   var target = String(name || '').trim().toUpperCase();
   for (var i = 0; i < (vlist || []).length; i++) {
@@ -818,41 +789,28 @@ function calcVendorYoy(year, month, center, name, real) {
   return (real - prevReal) / prevReal * 100;
 }
 function sumVendorsYtd(year, endMonth) {
-  var acc = {}, estimatedMonths = [];
+  var acc = {}, missingMonths = [];
   CENTERS.forEach(function(c) { acc[c] = {}; });
-  var shares = buildVendorShares(year, endMonth);
   for (var m = 1; m <= endMonth; m++) {
-    if (hasVendorMonthData(year, m)) {
-      var byC = getVendorsByCenter(year, m);
-      CENTERS.forEach(function(c) {
-        (byC[c] || []).forEach(function(v) {
-          var n = (v.name || '').trim();
-          if (!n) return;
-          acc[c][n] = (acc[c][n] || 0) + (v.real || 0);
-        });
-      });
-    } else {
-      var centerRealSum = 0, allocated = false;
-      CENTERS.forEach(function(c) {
-        var centerReal = getCenterMonthReal(c, year, m);
-        if (centerReal == null || centerReal <= 0) return;
-        centerRealSum += centerReal;
-        var sh = shares[c];
-        if (!sh || !Object.keys(sh).length) return;
-        allocated = true;
-        Object.keys(sh).forEach(function(n) {
-          acc[c][n] = (acc[c][n] || 0) + centerReal * sh[n];
-        });
-      });
-      if (allocated && centerRealSum > 0) estimatedMonths.push(m);
+    if (!hasVendorMonthData(year, m)) {
+      missingMonths.push(m);
+      continue;
     }
+    var byC = getVendorsByCenter(year, m);
+    CENTERS.forEach(function(c) {
+      (byC[c] || []).forEach(function(v) {
+        var n = (v.name || '').trim();
+        if (!n) return;
+        acc[c][n] = (acc[c][n] || 0) + (v.real || 0);
+      });
+    });
   }
   CENTERS.forEach(function(c) {
     Object.keys(acc[c] || {}).forEach(function(n) {
       acc[c][n] = Math.round(acc[c][n] * 100) / 100;
     });
   });
-  return {acc: acc, estimatedMonths: estimatedMonths};
+  return {acc: acc, missingMonths: missingMonths};
 }
 function renderVendorShareCell(pctNum) {
   if (pctNum == null || isNaN(pctNum)) return '<td class="vright">\u2014</td>';
@@ -927,11 +885,10 @@ function renderVendedores() {
 
   if (ytdBody && ytdSub) {
     var ytdResult = sumVendorsYtd(year, endM);
-    var ytd = ytdResult.acc, est = ytdResult.estimatedMonths || [];
-    var sub = 'Suma real de enero a ' + MN[endM - 1].toLowerCase() + ' de ' + year;
-    if (est.length) {
-      sub += '. Meses ' + est.map(function(m) { return MS[m - 1]; }).join(', ') +
-        ' repartidos seg\u00fan el mix de vendedores de los meses con desglose ERP (Ene\u2013Mar sin hist\u00f3rico guardado).';
+    var ytd = ytdResult.acc, missing = ytdResult.missingMonths || [];
+    var sub = 'Suma real (solo datos guardados) de enero a ' + MN[endM - 1].toLowerCase() + ' de ' + year;
+    if (missing.length) {
+      sub += '. Sin desglose en: ' + missing.map(function(m) { return MS[m - 1]; }).join(', ') + '.';
     }
     ytdSub.textContent = sub;
     var ytdHas = ORDER.some(function(c) { return Object.keys(ytd[c] || {}).length > 0; });
