@@ -8,52 +8,52 @@
   "kpis": {
     "global": {
       "real": 21671.89,
-      "budget": 397000,
+      "budget": 360139,
       "projection": 281734.57,
       "pace": 10835.94,
-      "varProyVsBudget": -115265.43,
-      "pctProyBudget": 71.0,
+      "varProyVsBudget": -78404.43,
+      "pctProyBudget": 78.2,
       "daysElapsed": 2,
       "daysTotal": 26
     },
     "byCenter": {
       "CENTRAL": {
         "real": 6139.67,
-        "budget": 109000,
+        "budget": 112089,
         "projection": 79815.71,
         "pace": 3069.84,
-        "varProyVsBudget": -29184.29,
-        "cumplPct": 73.2,
+        "varProyVsBudget": -32273.29,
+        "cumplPct": 71.2,
         "daysElapsed": 2,
         "daysTotal": 26
       },
       "ALCARRAS": {
         "real": 13392.56,
-        "budget": 179000,
+        "budget": 173889,
         "projection": 174103.28,
         "pace": 6696.28,
-        "varProyVsBudget": -4896.72,
-        "cumplPct": 97.3,
+        "varProyVsBudget": 214.28,
+        "cumplPct": 100.1,
         "daysElapsed": 2,
         "daysTotal": 26
       },
       "ALMOZARA": {
         "real": 632.23,
-        "budget": 29000,
+        "budget": 30550,
         "projection": 8218.99,
         "pace": 316.12,
-        "varProyVsBudget": -20781.01,
-        "cumplPct": 28.3,
+        "varProyVsBudget": -22331.01,
+        "cumplPct": 26.9,
         "daysElapsed": 2,
         "daysTotal": 26
       },
       "CORONA": {
         "real": 1507.43,
-        "budget": 80000,
+        "budget": 43611,
         "projection": 19596.59,
         "pace": 753.72,
-        "varProyVsBudget": -60403.41,
-        "cumplPct": 24.5,
+        "varProyVsBudget": -24014.41,
+        "cumplPct": 44.9,
         "daysElapsed": 2,
         "daysTotal": 26
       }
@@ -161,24 +161,24 @@
         {
           "month": 8,
           "real": 21671.89,
-          "budget": 397000,
+          "budget": 360139,
           "projection": 281734.57,
           "byCenter": {
             "CENTRAL": {
               "real": 6139.67,
-              "budget": 109000
+              "budget": 112089
             },
             "ALCARRAS": {
               "real": 13392.56,
-              "budget": 179000
+              "budget": 173889
             },
             "ALMOZARA": {
               "real": 632.23,
-              "budget": 29000
+              "budget": 30550
             },
             "CORONA": {
               "real": 1507.43,
-              "budget": 80000
+              "budget": 43611
             }
           }
         },
